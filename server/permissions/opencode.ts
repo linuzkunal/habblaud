@@ -119,6 +119,12 @@ interface Tracked {
 
 export class OpencodeAsks {
   private readonly items = new Map<string, Tracked>();
+  /** M4: pending permission text per session, from the last poll (read by the source instead of its own fetch). */
+  private waiting = new Map<string, string>();
+
+  waitingFor(sessionId: string): string | undefined {
+    return this.waiting.get(sessionId);
+  }
   private timer?: NodeJS.Timeout;
   private busy = false;
 
@@ -163,6 +169,7 @@ export class OpencodeAsks {
     try {
       const active = Object.keys(((await this.call('GET', '/api/session/active')).json as { data?: Rec } | undefined)?.data ?? {});
       const seen = new Set<string>();
+      const waiting = new Map<string, string>();
       for (const sid of active) {
         const forms = ((await this.call('GET', `/api/session/${sid}/form`)).json as { data?: OcForm[] } | undefined)?.data ?? [];
         for (const f of forms) {
@@ -172,6 +179,7 @@ export class OpencodeAsks {
           else this.retry(key);
         }
         const perms = ((await this.call('GET', `/api/session/${sid}/permission`)).json as { data?: OcPermission[] } | undefined)?.data ?? [];
+        if (perms[0]) waiting.set(sid, `${perms[0].action ?? 'permission'} ${(perms[0].resources ?? []).join(' ')}`.trim().slice(0, 60));
         for (const p of perms) {
           const key = `perm:${p.id}`;
           seen.add(key);
@@ -179,6 +187,7 @@ export class OpencodeAsks {
           else this.retry(key);
         }
       }
+      this.waiting = waiting;
       // Answered in infiniacode (or the session stopped): drop the wait; the registry releases the card.
       for (const [key, t] of this.items) {
         if (seen.has(key)) continue;

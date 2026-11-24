@@ -341,6 +341,9 @@ if (timeline) {
 }
 permissions?.start();
 opencodeAsks?.start();
+// M4: the source reads pending permissions from the bridge instead of fetching them again.
+const opencodeSrc = agents.of('opencode') as OpencodeSource | undefined;
+if (opencodeSrc && opencodeAsks) opencodeSrc.pendingOf = (sid) => opencodeAsks.waitingFor(sid);
 messages?.start();
 stats.start();
 updates.start();

@@ -172,6 +172,9 @@ export class OpencodeSource implements AgentSource {
   private readonly tracked = new Map<string, Tracked>();
   private timer?: NodeJS.Timeout;
   private pruneTimer?: NodeJS.Timeout;
+  /** M4: pending permission per session, shared by the question/permission bridge (saves one request per running
+   *  session per second). Unset → the source fetches it itself. */
+  pendingOf?: (sessionId: string) => string | undefined;
   private tick = 0;
   private busy = false;
   private failures = 0;
@@ -368,7 +371,13 @@ export class OpencodeSource implements AgentSource {
 
     let status: AgentStatus = running ? 'working' : 'idle';
     let waitingFor: string | undefined;
-    if (running) {
+    if (running && this.pendingOf) {
+      const pending = this.pendingOf(s.id);
+      if (pending) {
+        status = 'waiting';
+        waitingFor = pending;
+      }
+    } else if (running) {
       try {
         const perms = await this.get<{ data?: { action?: string; resources?: string[] }[] }>(svc, `/api/session/${s.id}/permission`);
         const pending = perms.data?.[0];
