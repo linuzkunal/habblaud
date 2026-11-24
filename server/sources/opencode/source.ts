@@ -27,7 +27,8 @@ const LIST_EVERY = 5; // full session list every 5 polls; active list every poll
 const IDLE_MS = 20 * 60 * 1000; // a session not updated for 20 min leaves the office
 const MAIN_ROLE = 'infiniacode';
 const MIRROR_EVERY = 2; // refresh a running session's terminal mirror every 2 polls
-const MIRROR_FETCH = 60; // newest messages read per refresh
+const MIRROR_FETCH = 60; // catch-up read (first mirror, or a gap since the last one)
+const MIRROR_STEP = 4; // steady-state read: just the newest few messages
 
 interface ServiceInfo {
   url: string;
@@ -207,7 +208,12 @@ export class OpencodeSource implements AgentSource {
     }
     let msgs: { data?: OcMessage[] };
     try {
-      msgs = await this.get(svc, `/api/session/${t.session.id}/message?limit=${MIRROR_FETCH}&order=desc`);
+      const url = (n: number) => `/api/session/${t.session.id}/message?limit=${n}&order=desc`;
+      // H2: read only the newest few; fall back to the big catch-up read when the mirror is new or the small read
+      // has no message we already wrote (a gap: more than MIRROR_STEP messages finished since the last refresh).
+      msgs = await this.get(svc, url(t.written.size ? MIRROR_STEP : MIRROR_FETCH));
+      const got = msgs.data ?? [];
+      if (t.written.size && got.length === MIRROR_STEP && !got.some((m) => t.written!.has(m.id))) msgs = await this.get(svc, url(MIRROR_FETCH));
     } catch {
       return;
     }
