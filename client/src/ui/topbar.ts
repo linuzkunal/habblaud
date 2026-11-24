@@ -129,7 +129,7 @@ export class TopBar implements UiComponent {
     const panelGroup = h(
       'div',
       { class: 'ui-btn-group', role: 'group', attrs: { 'aria-label': tr('Painéis') } },
-      this.spawnBtn,
+      // Fork: the small New agent icon is gone; the big "On-board employee" button (staff.ts) opens the same form.
       this.timelapseBtn,
       this.feedBtn,
       this.worldBtn,

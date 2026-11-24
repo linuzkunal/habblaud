@@ -11149,7 +11149,8 @@ html.is-replay #world {
 }
 
 /* Fork: staff bar (On-board / Off-board employee) in place of the usage cards. */
-.ui-staff__btn { cursor: pointer; text-align: left; font: inherit; color: inherit; width: 250px; min-width: 190px; }
+.ui-staff { margin-left: 0; flex: 1 1 auto; min-width: 0; }
+.ui-staff__btn { cursor: pointer; text-align: left; font: inherit; color: inherit; flex: 1 1 0; width: auto; min-width: 0; max-width: 340px; }
 .ui-staff__btn:hover { border-color: var(--ui-line-strong); background: var(--ui-bg-soft); }
 .ui-staff__btn:first-child { --acc: #3ccf7a; }
 .ui-staff__btn:last-child { --acc: #e8735a; }
