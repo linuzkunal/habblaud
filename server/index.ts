@@ -38,6 +38,7 @@ import { discoverCodexDirs } from './sources/codex/accounts';
 import { CodexHistory } from './sources/codex/history';
 import { CodexSource } from './sources/codex/source';
 import { OpencodeSource, serviceFile as opencodeServiceFile } from './sources/opencode/source';
+import { createOpencodeSender } from './messages/opencode';
 import { existsSync as opencodeExists } from 'node:fs';
 import { createBuildReader, readBuildInfo } from './build';
 import { UpdateChecker } from './updates/checker';
@@ -281,6 +282,8 @@ const messages = config.messages
         run: codexBin ? createCodexQueueRunner(codexBin) : undefined,
         homeOf: (account) => accounts.entriesOf('codex').find((e) => e.id === account)?.detected.configDir,
       },
+      // infiniacode / opencode: straight to the service API (no plugin), when its source is on.
+      opencode: agents.of('opencode') ? { send: createOpencodeSender(opencodeServiceFile(process.env, config.home)) } : undefined,
     })
   : undefined;
 late.messages = messages;

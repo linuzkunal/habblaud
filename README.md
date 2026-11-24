@@ -239,7 +239,9 @@ once a second, read-only.
 What you get per character: status (**working** while the session runs; **waiting**, hand raised, when infiniacode
 asks you a permission or a question; **idle** for 20 minutes after the last update, then it leaves), the current
 activity (the latest tool call, e.g. "Editing App.tsx"), and the **terminal** (prompts, reasoning, answers, tool calls
-and their results). Answering, sending messages and the interactive terminal stay Claude Code / Codex only.
+and their results). **Sending messages** works too, with no plugin: the text goes straight to the session through
+the service API (`POST /api/session/<id>/prompt`, queued) and runs as if you had typed it in that infiniacode window.
+Answering permissions from the office and the interactive terminal stay Claude Code / Codex only.
 
 ```bash
 infiniacode                     # or: opencode service start — the background service must be running
