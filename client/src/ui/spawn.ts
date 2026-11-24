@@ -137,6 +137,7 @@ export class SpawnPanel {
   private readonly targetRow: HTMLElement;
   private readonly targetBtns: Record<'claude' | 'infiniacode', HTMLButtonElement>;
   private readonly hint: HTMLElement;
+  private attachBtn!: HTMLButtonElement;
   private readonly claudeHint: HTMLElement;
 
   constructor(private readonly ctx: UiContext) {
@@ -157,7 +158,7 @@ export class SpawnPanel {
       this.addFiles([...(this.fileInput.files ?? [])]);
       this.fileInput.value = '';
     });
-    const attachBtn = h('button', { class: 'ui-btn ui-spawn__attach', type: 'button', attrs: { title: tr('Anexar imagens ou arquivos ao pedido') }, on: { click: () => this.fileInput.click() } });
+    const attachBtn = (this.attachBtn = h('button', { class: 'ui-btn ui-spawn__attach', type: 'button', attrs: { title: tr('Anexar imagens ou arquivos ao pedido') }, on: { click: () => this.fileInput.click() } }));
     const clip = h('span', { attrs: { 'aria-hidden': 'true' } });
     clip.innerHTML = ICONS.attach;
     attachBtn.append(clip, h('span', { text: tr('Anexar') }));
@@ -242,7 +243,10 @@ export class SpawnPanel {
       this.targetBtns[k].classList.toggle('is-on', k === t);
       this.targetBtns[k].setAttribute('aria-checked', String(k === t));
     }
-    if (t === 'infiniacode') setText(this.hint, 'Starts a new infiniacode session right away in the chosen folder (in the background service); the new employee walks into that room. Open it in infiniacode to take over. Attachments are not sent.');
+    // L2: infiniacode sessions don't receive attachments: no Attach button there.
+    setHidden(this.attachBtn, t === 'infiniacode');
+    setHidden(this.fileList, t === 'infiniacode');
+    if (t === 'infiniacode') setText(this.hint, 'Starts a new infiniacode session right away in the chosen folder (in the background service); the new employee walks into that room. Open it in infiniacode to take over.');
     else setText(this.hint, this.claudeHint.textContent ?? '');
   }
 
