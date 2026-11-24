@@ -45,6 +45,9 @@ interface OcSession {
   agent?: string;
   location?: { directory?: string };
   time?: { created?: number; updated?: number; archived?: number };
+  tokens?: { input?: number; output?: number; reasoning?: number; cache?: { read?: number; write?: number } };
+  cost?: number;
+  model?: { id?: string };
 }
 
 interface OcPart {
@@ -67,6 +70,8 @@ interface Tracked {
   inOffice: boolean;
   status: AgentStatus;
   lastActivityKey?: string;
+  /** L5: tool calls seen (for the agent stats). */
+  toolCalls?: number;
   /** Message ids already in the mirror file (loaded from it on first use). */
   written?: Set<string>;
   /** The mirror is current up to the last idle transition (no refresh needed while idle). */
@@ -434,6 +439,20 @@ export class OpencodeSource implements AgentSource {
     }
     if (status !== t.status || status === 'waiting') office.setStatus(s.id, status, waitingFor);
     t.status = status;
+    // L5: title, model and token/cost stats from the session (feeds the details panel and "My day").
+    const tk = s.tokens ?? {};
+    office.applyTranscript(s.id, {
+      title: s.title,
+      tasks: [],
+      model: s.model?.id,
+      stats: {
+        toolCalls: t.toolCalls ?? 0,
+        tokensIn: (tk.input ?? 0) + (tk.cache?.read ?? 0) + (tk.cache?.write ?? 0),
+        tokensOut: (tk.output ?? 0) + (tk.reasoning ?? 0),
+        ...(typeof s.cost === 'number' ? { costUSD: s.cost } : {}),
+        subagents: [...this.tracked.values()].filter((c) => c.session.parentID === s.id).length,
+      },
+    });
     // Terminal mirror: on entering, every MIRROR_EVERY polls while running, and once more when it goes idle.
     if (running) {
       t.mirrorFinal = false;
@@ -463,6 +482,7 @@ export class OpencodeSource implements AgentSource {
       const live = p.state?.status === 'running' || p.state?.status === 'pending';
       if (key === t.lastActivityKey) return live ? name : undefined;
       t.lastActivityKey = key;
+      t.toolCalls = (t.toolCalls ?? 0) + 1;
       const desc = describeOpencodeTool(name, p.state?.input ?? {});
       const activity: Activity = { id: `oc:${key}`, at: m.time?.created ?? now, tool: name, ...desc };
       this.opts.office.addActivity(t.session.id, activity, live);

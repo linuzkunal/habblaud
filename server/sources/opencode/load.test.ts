@@ -21,7 +21,7 @@ describe('request load', () => {
       return new Response(JSON.stringify({ data: [] }));
     });
     const statuses: string[] = [];
-    const office = { addMain() {}, has: () => true, setStatus: (_id: string, st: string) => statuses.push(st), addActivity() {} };
+    const office = { addMain() {}, has: () => true, setStatus: (_id: string, st: string) => statuses.push(st), addActivity() {}, applyTranscript() {} };
     const src = new OpencodeSource({ accounts: {} as never, office: office as never, home: dir, env: { OPENCODE_SERVICE_FILE: file, HABBLAUD_OPENCODE_MIRROR: join(dir, 'm') } });
     src.pendingOf = (sid) => (sid === 'ses_w' ? 'bash go test' : undefined);
     await (src as unknown as { poll: (b: boolean) => Promise<void> }).poll(true);
