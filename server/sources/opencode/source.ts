@@ -312,7 +312,11 @@ export class OpencodeSource implements AgentSource {
       const active = new Set(Object.keys((await this.get<{ data: Record<string, unknown> }>(svc, '/api/session/active')).data ?? {}));
       const unknownActive = [...active].some((id) => !this.tracked.has(id));
       if (boot || unknownActive || this.tick % LIST_EVERY === 0) {
-        const list = await this.get<{ data: OcSession[] }>(svc, '/api/session?limit=60&order=desc');
+        let list = await this.get<{ data: OcSession[] }>(svc, '/api/session?limit=60&order=desc');
+        // L6: the list is newest-update first; if all 60 were updated recently, more may be active: read a bigger page.
+        const last = list.data?.[list.data.length - 1];
+        if ((list.data?.length ?? 0) >= 60 && last && Date.now() - (last.time?.updated ?? 0) < IDLE_MS)
+          list = await this.get<{ data: OcSession[] }>(svc, '/api/session?limit=300&order=desc');
         const listed = new Set<string>();
         for (const s of list.data ?? []) {
           listed.add(s.id);
