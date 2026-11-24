@@ -214,6 +214,10 @@ class AgentView {
   private statusText: HTMLElement;
   private statusSince: HTMLElement;
   private followBtn: HTMLButtonElement;
+  /** infiniacode only: off-board (interrupt + archive the session). Two clicks. */
+  private offBtn!: HTMLButtonElement;
+  private offConfirm = false;
+  private offTimer?: number;
   private termBtn: HTMLButtonElement;
   private termLabel: HTMLElement;
   /** Por que o terminal não abre: no celular não há hover para ler o title, então o toque mostra o motivo aqui. */
@@ -303,7 +307,7 @@ class AgentView {
       'div',
       { class: 'ui-status' },
       h('span', { class: 'ui-status__label' }, this.dot, this.statusText, this.statusSince),
-      h('span', { class: 'ui-status__actions' }, this.followBtn, centerBtn),
+      h('span', { class: 'ui-status__actions' }, this.followBtn, centerBtn, this.makeOffBtn()),
     );
 
     // Terminal: a conversa da sessão como o Claude Code mostra, ao vivo (só com acesso local).
@@ -521,6 +525,53 @@ class AgentView {
     this.ctx.invalidate();
   }
 
+  private makeOffBtn(): HTMLButtonElement {
+    this.offBtn = h('button', {
+      class: 'ui-btn',
+      type: 'button',
+      title: 'Off-board: stop what this infiniacode session is doing and archive it (it can be restored in infiniacode)',
+      text: 'Off-board',
+      hidden: true,
+      on: { click: () => void this.offboard() },
+    });
+    return this.offBtn;
+  }
+
+  private async offboard(): Promise<void> {
+    const a = this.last;
+    if (!a) return;
+    if (!this.offConfirm) {
+      this.offConfirm = true;
+      setText(this.offBtn, 'Confirm off-board?');
+      this.offBtn.classList.add('is-on');
+      window.clearTimeout(this.offTimer);
+      this.offTimer = window.setTimeout(() => {
+        this.offConfirm = false;
+        setText(this.offBtn, 'Off-board');
+        this.offBtn.classList.remove('is-on');
+      }, 4000);
+      return;
+    }
+    window.clearTimeout(this.offTimer);
+    this.offConfirm = false;
+    this.offBtn.disabled = true;
+    setText(this.offBtn, 'Off-boarding…');
+    try {
+      const res = await fetch(`/api/opencode/agents/${encodeURIComponent(a.sessionId)}/stop`, { method: 'POST', credentials: 'same-origin', cache: 'no-store', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`);
+      setText(this.offBtn, 'Off-boarded');
+      this.ctx.announce(`${a.name} was off-boarded.`);
+    } catch (err) {
+      setText(this.offBtn, 'Off-board failed');
+      this.offBtn.title = (err as Error).message;
+    } finally {
+      this.offBtn.disabled = false;
+      this.offBtn.classList.remove('is-on');
+      window.setTimeout(() => setText(this.offBtn, 'Off-board'), 5000);
+    }
+  }
+
   render(): void {
     const live = this.ctx.agent(this.id);
     if (live) this.last = live;
@@ -566,6 +617,7 @@ class AgentView {
     setAttr(this.followBtn, 'aria-pressed', String(following));
     this.followBtn.classList.toggle('is-on', following);
     this.renderTerminalButton(!!live);
+    setHidden(this.offBtn, !(live && a.provider === 'opencode' && a.kind === 'main' && access().opencodeSpawn && !this.ctx.store.mock && !this.ctx.store.replaying));
 
     // Alerta.
     const waiting = a.status === 'waiting' && !!live;

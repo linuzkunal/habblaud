@@ -40,7 +40,7 @@ interface OcSession {
   title?: string;
   agent?: string;
   location?: { directory?: string };
-  time?: { created?: number; updated?: number };
+  time?: { created?: number; updated?: number; archived?: number };
 }
 
 interface OcPart {
@@ -249,10 +249,21 @@ export class OpencodeSource implements AgentSource {
       const unknownActive = [...active].some((id) => !this.tracked.has(id));
       if (boot || unknownActive || this.tick % LIST_EVERY === 0) {
         const list = await this.get<{ data: OcSession[] }>(svc, '/api/session?limit=60&order=desc');
+        const listed = new Set<string>();
         for (const s of list.data ?? []) {
+          listed.add(s.id);
           const t = this.tracked.get(s.id);
           if (t) t.session = s;
           else this.tracked.set(s.id, { session: s, inOffice: false, status: 'idle' });
+        }
+        // Gone from the list (archived / off-boarded, or deleted) and not running: leaves the office now.
+        for (const [id, t] of this.tracked) {
+          if (listed.has(id) || active.has(id)) continue;
+          if (t.inOffice) {
+            if (t.session.parentID) this.opts.office.completeSub(id);
+            else this.opts.office.closeMain(id);
+          }
+          this.tracked.delete(id);
         }
       }
       this.tick++;
@@ -275,7 +286,9 @@ export class OpencodeSource implements AgentSource {
     const s = t.session;
     const recent = now - (s.time?.updated ?? 0) < IDLE_MS;
     const isSub = !!s.parentID;
-    const shouldBeIn = isSub ? running : running || recent;
+    // Archived (off-boarded from the office or in infiniacode): out, even if it was updated a moment ago.
+    const archived = !!s.time?.archived;
+    const shouldBeIn = !archived && (isSub ? running : running || recent);
 
     if (!shouldBeIn) {
       if (t.inOffice) {

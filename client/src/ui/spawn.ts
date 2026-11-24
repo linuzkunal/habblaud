@@ -10,6 +10,7 @@ import type { UiContext } from './context';
 import { DictationButton, dictationAvailable, insertDictation } from './dictation';
 import { h, iconButton, setHidden, setText } from './dom';
 import { ICONS } from './icons';
+import { access } from '../net/access';
 
 export const SPAWN_PROMPT_MAX = 8_000;
 export const MAX_FILES = 8;
@@ -131,6 +132,12 @@ export class SpawnPanel {
   private selected = '';
   private typing = false;
   private files: PendingFile[] = [];
+  /** Which tool the new agent runs: Claude Code (POST /api/spawn) or infiniacode (POST /api/opencode/spawn). */
+  private target: 'claude' | 'infiniacode' = 'claude';
+  private readonly targetRow: HTMLElement;
+  private readonly targetBtns: Record<'claude' | 'infiniacode', HTMLButtonElement>;
+  private readonly hint: HTMLElement;
+  private readonly claudeHint: HTMLElement;
 
   constructor(private readonly ctx: UiContext) {
     this.folderList = h('div', { class: 'ui-spawn__folders', role: 'radiogroup', attrs: { 'aria-label': tr('Projetos recentes') } });
@@ -180,7 +187,15 @@ export class SpawnPanel {
       this.selected = this.folder.value.trim();
       this.renderFolders();
     });
+    const pick = (t: 'claude' | 'infiniacode') => () => this.setTarget(t);
+    this.targetBtns = {
+      claude: h('button', { class: 'ui-btn ui-btn--sm', type: 'button', attrs: { role: 'radio' }, text: 'Claude Code', on: { click: pick('claude') } }),
+      infiniacode: h('button', { class: 'ui-btn ui-btn--sm', type: 'button', attrs: { role: 'radio' }, text: 'infiniacode', on: { click: pick('infiniacode') } }),
+    };
+    this.targetRow = h('div', { class: 'ui-spawn__target', role: 'radiogroup', attrs: { 'aria-label': 'Agent tool' } }, this.targetBtns.claude, this.targetBtns.infiniacode);
     const close = iconButton(ICONS.close, tr('Fechar'), () => this.hide(), 'ui-icon-btn--sm');
+    this.hint = h('p', { class: 'ui-rename__hint' });
+    this.claudeHint = h('p', { class: 'ui-rename__hint', text: tr('Começa na hora uma sessão do Claude Code em segundo plano no computador, na pasta escolhida; as permissões chegam aqui. Pasta que o Claude Code ainda não conhece abre no app do Claude e espera o Enter lá. Anexos vão para ~/.habblaud/attachments e o pedido leva os caminhos.') });
     this.el = h(
       'div',
       { class: 'ui-popover ui-spawn', role: 'dialog', tabIndex: -1, attrs: { 'aria-label': tr('Novo agente'), id: 'ui-spawn', popover: 'auto' } },
@@ -188,6 +203,7 @@ export class SpawnPanel {
       h(
         'div',
         { class: 'ui-set-group ui-spawn__body' },
+        this.targetRow,
         h('p', { class: 'ui-spawn__label', attrs: { id: 'ui-spawn-folders-label' }, text: tr('Projeto') }),
         this.folderList,
         this.otherBtn,
@@ -196,7 +212,7 @@ export class SpawnPanel {
         this.prompt,
         h('div', { class: 'ui-spawn__tools' }, this.dictate.el, attachBtn, this.fileInput),
         this.fileList,
-        h('p', { class: 'ui-rename__hint', text: tr('Começa na hora uma sessão do Claude Code em segundo plano no computador, na pasta escolhida; as permissões chegam aqui. Pasta que o Claude Code ainda não conhece abre no app do Claude e espera o Enter lá. Anexos vão para ~/.habblaud/attachments e o pedido leva os caminhos.') }),
+        this.hint,
         this.submitBtn,
         this.status,
       ),
@@ -215,9 +231,25 @@ export class SpawnPanel {
     }
   }
 
+  /** Claude Code and/or infiniacode, depending on what this page may start (GET /api/access). */
+  private setTarget(t: 'claude' | 'infiniacode'): void {
+    const a = access();
+    if (t === 'claude' && !a.spawn) t = 'infiniacode';
+    if (t === 'infiniacode' && !a.opencodeSpawn) t = 'claude';
+    this.target = t;
+    setHidden(this.targetRow, !(a.spawn && a.opencodeSpawn));
+    for (const k of ['claude', 'infiniacode'] as const) {
+      this.targetBtns[k].classList.toggle('is-on', k === t);
+      this.targetBtns[k].setAttribute('aria-checked', String(k === t));
+    }
+    if (t === 'infiniacode') setText(this.hint, 'Starts a new infiniacode session right away in the chosen folder (in the background service); the new employee walks into that room. Open it in infiniacode to take over. Attachments are not sent.');
+    else setText(this.hint, this.claudeHint.textContent ?? '');
+  }
+
   toggle(anchor: HTMLElement): void {
     this.anchor = anchor;
     if (this.isOpen) return this.hide();
+    this.setTarget(this.target);
     // Primeiro com o que o escritório já sabe; a lista do servidor (histórico) chega logo depois.
     if (!this.folders.length) this.setFolders(spawnFolders(this.ctx.store.snapshot).map((path) => ({ path, name: path.split(/[\\/]/).pop() || path, lastAt: 0 })));
     void this.loadFolders();
@@ -354,6 +386,27 @@ export class SpawnPanel {
     if (!folder) return this.say(tr('Escolha o projeto.'), true);
     this.busy = true;
     this.submitBtn.disabled = true;
+    if (this.target === 'infiniacode') {
+      try {
+        this.say('Starting the infiniacode session…');
+        const r = await api<{ sessionId: string }>('/api/opencode/spawn', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ folder, prompt: this.prompt.value }),
+        });
+        this.say(`Running: infiniacode session ${r.sessionId} started; the new employee walks in shortly.`);
+        this.prompt.value = '';
+        this.clearFiles();
+        writePref(folder);
+        this.ctx.announce('New infiniacode agent running.');
+      } catch (err) {
+        this.say(`Did not start: ${(err as Error).message}`, true);
+      } finally {
+        this.busy = false;
+        this.submitBtn.disabled = false;
+      }
+      return;
+    }
     try {
       const ids: string[] = [];
       for (const [i, f] of this.files.entries()) {

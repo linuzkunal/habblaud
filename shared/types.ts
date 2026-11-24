@@ -391,6 +391,8 @@ export interface AccessInfo {
   terminal: boolean;
   /** Pode abrir agentes novos no app do Claude (POST /api/spawn). */
   spawn: boolean;
+  /** Can start/stop infiniacode / opencode sessions (POST /api/opencode/spawn, /api/opencode/agents/:id/stop). */
+  opencodeSpawn?: boolean;
   /**
    * Pode usar a conta do Habblaud World (/api/world/*): recurso ligado (HABBLAUD_WORLD), trava do terminal e porta local
    * com Host local. Ausente em servidores antigos.

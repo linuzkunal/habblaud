@@ -16,6 +16,7 @@ import { handleStatsRoute } from './stats';
 import type { TerminalStreams } from './terminal';
 import { tr } from '../../shared/i18n';
 import type { SpawnService } from '../spawn/spawn';
+import type { OpencodeControl } from '../spawn/opencode';
 import { ATTACHMENT_BODY_MAX, parseAttachment, type AttachmentStore } from '../spawn/attachments';
 import type { SpawnFolder } from '../spawn/folders';
 import { AUDIO_BODY_MAX, type DictationService } from '../dictation/dictation';
@@ -65,6 +66,8 @@ export interface ApiDeps {
   codexLive?: CodexLive;
   /** Novo agente pelo escritório (/api/spawn e, para o auxiliar do host, /api/host/spawn/*; server/spawn/spawn.ts). */
   spawn?: SpawnService;
+  /** Start/stop infiniacode sessions (/api/opencode/*; server/spawn/opencode.ts). Local access only, like spawn. */
+  opencodeControl?: OpencodeControl;
   /** Pastas sugeridas no "Novo agente" (GET /api/spawn/folders; spawn/folders.ts): projetos recentes. */
   spawnFolders?: () => Promise<SpawnFolder[]>;
   /** Anexos do "Novo agente" (POST /api/spawn/attachments; spawn/attachments.ts). */
@@ -398,6 +401,7 @@ export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: Ser
           messages: !!deps.messages && trusted(req, 'messages'),
           terminal: !!terminals && trusted(req, 'terminal'),
           spawn: !!deps.spawn && trusted(req, 'spawn'),
+          opencodeSpawn: !!deps.opencodeControl && trusted(req, 'spawn'),
           world: !!deps.world && !!deps.terminal && !remote && isLoopbackHost(req.headers.host),
         };
         sendJson(res, 200, access);
@@ -487,6 +491,26 @@ export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: Ser
       else if (!trusted(req) || (!deps.inDocker && !isLoopbackAddress(req.socket.remoteAddress))) {
         sendJson(res, 403, { error: denied(req, tr('eventos do Codex só são aceitos pelo próprio computador (http://localhost ou http://127.0.0.1)')) });
       } else handleCodexEvent(req, res, { live: deps.codexLive, entries: () => accounts.entriesOf('codex') }).catch((err) => fail(res, err));
+      return true;
+    }
+    if (path === '/api/opencode/spawn' || /^\/api\/opencode\/agents\/[^/]+\/stop$/.test(path)) {
+      // Start / stop infiniacode sessions: acts on the machine, so the same lock as spawn (local access only).
+      const ctl = deps.opencodeControl;
+      if (!ctl) sendJson(res, 403, { error: 'infiniacode start/stop is off (no infiniacode service found)' });
+      else if (!trusted(req, 'spawn')) sendJson(res, 403, { error: denied(req, 'infiniacode sessions are only started/stopped from this computer (http://localhost)') });
+      else if (method !== 'POST') methodNotAllowed(res, 'POST');
+      else if (path === '/api/opencode/spawn')
+        readJson(req)
+          .then(async (body) => {
+            const r = await ctl.start(body);
+            if (r.ok) sendJson(res, 201, { sessionId: r.sessionId });
+            else sendJson(res, r.status, { error: r.error });
+          })
+          .catch((err) => fail(res, err));
+      else {
+        const id = decodeURIComponent(path.split('/')[4]);
+        ctl.stop(id).then((r) => (r.ok ? sendJson(res, 200, { ok: true }) : sendJson(res, r.status, { error: r.error })), (err) => fail(res, err));
+      }
       return true;
     }
     if (path === '/api/spawn' || path.startsWith('/api/spawn/')) {

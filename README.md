@@ -241,7 +241,12 @@ asks you a permission or a question; **idle** for 20 minutes after the last upda
 activity (the latest tool call, e.g. "Editing App.tsx"), and the **terminal** (prompts, reasoning, answers, tool calls
 and their results). **Sending messages** works too, with no plugin: the text goes straight to the session through
 the service API (`POST /api/session/<id>/prompt`, queued) and runs as if you had typed it in that infiniacode window.
-Answering permissions from the office and the interactive terminal stay Claude Code / Codex only.
+**On-board / off-board** works too: **New agent** (top bar) offers *infiniacode* — pick a project folder and an
+instruction, and a new session starts right away in infiniacode's background service (the new employee walks into
+that room; open it in infiniacode to take over). On an infiniacode character, **Off-board** (two clicks) interrupts
+what it's doing and **archives** the session — not deleted, it can be restored in infiniacode — and the character
+leaves. Both are local-only (same lock as New agent). Answering permissions from the office and the interactive
+terminal stay Claude Code / Codex only.
 
 ```bash
 infiniacode                     # or: opencode service start — the background service must be running

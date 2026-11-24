@@ -39,6 +39,7 @@ import { CodexHistory } from './sources/codex/history';
 import { CodexSource } from './sources/codex/source';
 import { OpencodeSource, serviceFile as opencodeServiceFile } from './sources/opencode/source';
 import { createOpencodeSender } from './messages/opencode';
+import { createOpencodeControl } from './spawn/opencode';
 import { existsSync as opencodeExists } from 'node:fs';
 import { createBuildReader, readBuildInfo } from './build';
 import { UpdateChecker } from './updates/checker';
@@ -374,6 +375,7 @@ const api = createApiHandler({
   dictation,
   deliveries,
   files: deliveryFiles,
+  opencodeControl: agents.of('opencode') ? createOpencodeControl(opencodeServiceFile(process.env, config.home)) : undefined,
   spawnFolders: async () => {
     const snap = hub.current();
     const last = new Map<string, number>();

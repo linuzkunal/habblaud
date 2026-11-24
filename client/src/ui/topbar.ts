@@ -219,7 +219,7 @@ export class TopBar implements UiComponent {
 
     this.usage.render();
     this.version.render();
-    setHidden(this.spawnBtn, !access().spawn || store.mock || store.replaying);
+    setHidden(this.spawnBtn, !(access().spawn || access().opencodeSpawn) || store.mock || store.replaying);
 
     this.sidebarBtn.setAttribute('aria-pressed', String(this.ctx.isPanelOpen('sidebar')));
     this.feedBtn.setAttribute('aria-pressed', String(this.ctx.isPanelOpen('feed')));
