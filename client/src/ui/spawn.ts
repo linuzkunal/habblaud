@@ -193,7 +193,7 @@ export class SpawnPanel {
       claude: h('button', { class: 'ui-btn ui-btn--sm', type: 'button', attrs: { role: 'radio' }, text: 'Claude Code', on: { click: pick('claude') } }),
       infiniacode: h('button', { class: 'ui-btn ui-btn--sm', type: 'button', attrs: { role: 'radio' }, text: 'infiniacode', on: { click: pick('infiniacode') } }),
     };
-    this.targetRow = h('div', { class: 'ui-spawn__target', role: 'radiogroup', attrs: { 'aria-label': 'Agent tool' } }, this.targetBtns.claude, this.targetBtns.infiniacode);
+    this.targetRow = h('div', { class: 'ui-spawn__target', role: 'radiogroup', attrs: { 'aria-label': tr('Ferramenta do agente') } }, this.targetBtns.claude, this.targetBtns.infiniacode);
     const close = iconButton(ICONS.close, tr('Fechar'), () => this.hide(), 'ui-icon-btn--sm');
     this.hint = h('p', { class: 'ui-rename__hint' });
     this.claudeHint = h('p', { class: 'ui-rename__hint', text: tr('Começa na hora uma sessão do Claude Code em segundo plano no computador, na pasta escolhida; as permissões chegam aqui. Pasta que o Claude Code ainda não conhece abre no app do Claude e espera o Enter lá. Anexos vão para ~/.habblaud/attachments e o pedido leva os caminhos.') });
@@ -246,7 +246,7 @@ export class SpawnPanel {
     // L2: infiniacode sessions don't receive attachments: no Attach button there.
     setHidden(this.attachBtn, t === 'infiniacode');
     setHidden(this.fileList, t === 'infiniacode');
-    if (t === 'infiniacode') setText(this.hint, 'Starts a new infiniacode session right away in the chosen folder (in the background service); the new employee walks into that room. Open it in infiniacode to take over.');
+    if (t === 'infiniacode') setText(this.hint, tr('Começa na hora uma sessão nova do infiniacode na pasta escolhida (no serviço em segundo plano); o funcionário novo entra nessa sala. Abra no infiniacode para assumir.'));
     else setText(this.hint, this.claudeHint.textContent ?? '');
   }
 
@@ -392,19 +392,19 @@ export class SpawnPanel {
     this.submitBtn.disabled = true;
     if (this.target === 'infiniacode') {
       try {
-        this.say('Starting the infiniacode session…');
+        this.say(tr('Começando a sessão do infiniacode…'));
         const r = await api<{ sessionId: string }>('/api/opencode/spawn', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ folder, prompt: this.prompt.value }),
         });
-        this.say(`Running: infiniacode session ${r.sessionId} started; the new employee walks in shortly.`);
+        this.say(tr('Rodando: sessão {0} do infiniacode começou; o funcionário novo entra em instantes.', [r.sessionId]));
         this.prompt.value = '';
         this.clearFiles();
         writePref(folder);
-        this.ctx.announce('New infiniacode agent running.');
+        this.ctx.announce(tr('Agente novo do infiniacode rodando.'));
       } catch (err) {
-        this.say(`Did not start: ${(err as Error).message}`, true);
+        this.say(tr('Não começou: {0}', [(err as Error).message]), true);
       } finally {
         this.busy = false;
         this.submitBtn.disabled = false;

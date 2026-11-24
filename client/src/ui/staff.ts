@@ -3,10 +3,12 @@
 //   Off-board employee → a list of the infiniacode employees in the office; pick one, confirm, and the session is
 //                        interrupted and archived (POST /api/opencode/agents/:id/stop). Archived, not deleted.
 import type { AgentInfo } from '../../../shared/types';
+import { tr } from '../../../shared/i18n';
 import { access } from '../net/access';
 import type { UiContext } from './context';
 import { h, iconButton, setHidden, setText } from './dom';
 import { ICONS } from './icons';
+import { statusLabel } from './model';
 
 const CONFIRM_MS = 4000;
 
@@ -35,23 +37,23 @@ export class StaffBar {
     private readonly ctx: UiContext,
     openOnboard: (anchor: HTMLElement) => void,
   ) {
-    this.onboardBtn = bigButton('➕', 'On-board employee', 'Start a new session in a project', () => openOnboard(this.onboardBtn));
+    this.onboardBtn = bigButton('➕', tr('Contratar funcionário'), tr('Começa uma sessão nova num projeto'), () => openOnboard(this.onboardBtn));
     this.onboardBtn.setAttribute('aria-haspopup', 'dialog');
-    this.offboardBtn = bigButton('👋', 'Off-board employee', 'Stop & archive an infiniacode session', () => this.toggle());
+    this.offboardBtn = bigButton('👋', tr('Desligar funcionário'), tr('Para e arquiva uma sessão do infiniacode'), () => this.toggle());
     this.offboardBtn.setAttribute('aria-haspopup', 'dialog');
-    this.el = h('div', { class: 'ui-usage ui-staff', role: 'group', attrs: { 'aria-label': 'Staff' } }, this.onboardBtn, this.offboardBtn);
+    this.el = h('div', { class: 'ui-usage ui-staff', role: 'group', attrs: { 'aria-label': tr('Equipe') } }, this.onboardBtn, this.offboardBtn);
 
     this.list = h('ul', { class: 'ui-staff__list' });
     this.status = h('p', { class: 'ui-rename__hint ui-spawn__status', attrs: { role: 'status', 'aria-live': 'polite' } });
-    const close = iconButton(ICONS.close, 'Close', () => this.hide(), 'ui-icon-btn--sm');
+    const close = iconButton(ICONS.close, tr('Fechar'), () => this.hide(), 'ui-icon-btn--sm');
     this.picker = h(
       'div',
-      { class: 'ui-popover ui-spawn', role: 'dialog', tabIndex: -1, attrs: { 'aria-label': 'Off-board employee', popover: 'auto' } },
-      h('div', { class: 'ui-popover__head' }, h('h2', { text: 'Off-board employee' }), close),
+      { class: 'ui-popover ui-spawn', role: 'dialog', tabIndex: -1, attrs: { 'aria-label': tr('Desligar funcionário'), popover: 'auto' } },
+      h('div', { class: 'ui-popover__head' }, h('h2', { text: tr('Desligar funcionário') }), close),
       h(
         'div',
         { class: 'ui-set-group ui-spawn__body' },
-        h('p', { class: 'ui-rename__hint', text: 'Interrupts what the session is doing and archives it (not deleted: it can be restored in infiniacode). Click twice to confirm.' }),
+        h('p', { class: 'ui-rename__hint', text: tr('Interrompe o que a sessão está fazendo e a arquiva (não apaga: dá para restaurar no infiniacode). Clique duas vezes para confirmar.') }),
         this.list,
         this.status,
       ),
@@ -94,7 +96,7 @@ export class StaffBar {
     this.list.replaceChildren();
     const people = this.employees();
     if (!people.length) {
-      this.list.append(h('li', { class: 'ui-rename__hint', text: 'No infiniacode employees in the office right now.' }));
+      this.list.append(h('li', { class: 'ui-rename__hint', text: tr('Nenhum funcionário do infiniacode no escritório agora.') }));
       return;
     }
     for (const a of people) {
@@ -102,7 +104,7 @@ export class StaffBar {
       const btn = h('button', {
         class: 'ui-btn ui-btn--sm',
         type: 'button',
-        text: this.confirmId === a.id ? 'Confirm?' : 'Off-board',
+        text: this.confirmId === a.id ? tr('Confirmar?') : tr('Desligar'),
         on: { click: () => void this.offboard(a) },
       });
       if (this.confirmId === a.id) btn.classList.add('is-on');
@@ -110,7 +112,7 @@ export class StaffBar {
         h(
           'li',
           { class: 'ui-staff__row' },
-          h('span', { class: 'ui-staff__who' }, h('b', { text: a.name }), h('span', { text: ` · ${room} · ${a.status}` })),
+          h('span', { class: 'ui-staff__who' }, h('b', { text: a.name }), h('span', { text: ` · ${room} · ${statusLabel(a.status)}` })),
           btn,
         ),
       );
@@ -129,7 +131,7 @@ export class StaffBar {
     }
     window.clearTimeout(this.confirmTimer);
     this.confirmId = undefined;
-    setText(this.status, `Off-boarding ${a.name}…`);
+    setText(this.status, tr('Desligando {0}…', [a.name]));
     try {
       const res = await fetch(`/api/opencode/agents/${encodeURIComponent(a.sessionId)}/stop`, {
         method: 'POST',
@@ -140,11 +142,11 @@ export class StaffBar {
       });
       const body = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`);
-      setText(this.status, `${a.name} was off-boarded (session archived). They leave the office in a moment.`);
-      this.ctx.announce(`${a.name} was off-boarded.`);
+      setText(this.status, tr('{0} foi desligado (sessão arquivada). Sai do escritório em instantes.', [a.name]));
+      this.ctx.announce(tr('{0} foi desligado.', [a.name]));
     } catch (err) {
       this.status.classList.add('is-error');
-      setText(this.status, `Off-board failed: ${(err as Error).message}`);
+      setText(this.status, tr('Não desligou: {0}', [(err as Error).message]));
     }
     this.renderList();
   }

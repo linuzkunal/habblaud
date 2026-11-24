@@ -18,6 +18,7 @@ import { describeTool, maskSecrets, truncate, type ActivityDescription } from '.
 import type { AccountsService } from '../../accounts/service';
 import type { Office } from '../../model/office';
 import { errMsg, log } from '../../log';
+import { tr } from '../../../shared/i18n';
 import type { AgentSource } from '../source';
 import type { TerminalParser } from '../terminal';
 import { createOpencodeTerminalParser } from './terminal';
@@ -162,7 +163,7 @@ export function describeOpencodeTool(name: string, input: Record<string, unknown
     case 'todowrite':
       return describeTool('TodoWrite', { todos: input.todos });
     case 'question':
-      return { kind: 'ask', icon: '🙋', text: 'Asking you a question', detail: truncate(maskSecrets(JSON.stringify(input)), 300) };
+      return { kind: 'ask', icon: '🙋', text: tr('Fazendo uma pergunta'), detail: truncate(maskSecrets(JSON.stringify(input)), 300) };
     case 'skill':
       return describeTool('Skill', { skill: s(input.name) || s(input.skill) });
     case 'execute': {
@@ -170,7 +171,7 @@ export function describeOpencodeTool(name: string, input: Record<string, unknown
       const code = s(input.code);
       const called = [...code.matchAll(/tools(?:\.|\[")([\w-]+)(?:"\])?\.(\w+)/g)].map((m) => `${m[1]}.${m[2]}`);
       const label = called.length ? [...new Set(called)].slice(0, 2).join(', ') : 'code';
-      return { kind: 'other', icon: '🧩', text: truncate(`Running ${label}`, 46), detail: truncate(maskSecrets(code), 300) };
+      return { kind: 'other', icon: '🧩', text: truncate(tr('Rodando {0}', [label]), 46), detail: truncate(maskSecrets(code), 300) };
     }
     default:
       return describeTool(name, input);

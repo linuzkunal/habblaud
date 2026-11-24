@@ -529,8 +529,8 @@ class AgentView {
     this.offBtn = h('button', {
       class: 'ui-btn',
       type: 'button',
-      title: 'Off-board: stop what this infiniacode session is doing and archive it (it can be restored in infiniacode)',
-      text: 'Off-board',
+      title: tr('Desligar: para o que esta sessão do infiniacode está fazendo e a arquiva (dá para restaurar no infiniacode)'),
+      text: tr('Desligar'),
       hidden: true,
       on: { click: () => void this.offboard() },
     });
@@ -542,12 +542,12 @@ class AgentView {
     if (!a) return;
     if (!this.offConfirm) {
       this.offConfirm = true;
-      setText(this.offBtn, 'Confirm off-board?');
+      setText(this.offBtn, tr('Confirmar desligamento?'));
       this.offBtn.classList.add('is-on');
       window.clearTimeout(this.offTimer);
       this.offTimer = window.setTimeout(() => {
         this.offConfirm = false;
-        setText(this.offBtn, 'Off-board');
+        setText(this.offBtn, tr('Desligar'));
         this.offBtn.classList.remove('is-on');
       }, 4000);
       return;
@@ -555,20 +555,20 @@ class AgentView {
     window.clearTimeout(this.offTimer);
     this.offConfirm = false;
     this.offBtn.disabled = true;
-    setText(this.offBtn, 'Off-boarding…');
+    setText(this.offBtn, tr('Desligando…'));
     try {
       const res = await fetch(`/api/opencode/agents/${encodeURIComponent(a.sessionId)}/stop`, { method: 'POST', credentials: 'same-origin', cache: 'no-store', headers: { 'Content-Type': 'application/json' }, body: '{}' });
       const body = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`);
-      setText(this.offBtn, 'Off-boarded');
-      this.ctx.announce(`${a.name} was off-boarded.`);
+      setText(this.offBtn, tr('Desligado'));
+      this.ctx.announce(tr('{0} foi desligado.', [a.name]));
     } catch (err) {
-      setText(this.offBtn, 'Off-board failed');
+      setText(this.offBtn, tr('Falhou'));
       this.offBtn.title = (err as Error).message;
     } finally {
       this.offBtn.disabled = false;
       this.offBtn.classList.remove('is-on');
-      window.setTimeout(() => setText(this.offBtn, 'Off-board'), 5000);
+      window.setTimeout(() => setText(this.offBtn, tr('Desligar')), 5000);
     }
   }
 

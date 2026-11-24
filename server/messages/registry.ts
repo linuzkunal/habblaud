@@ -54,8 +54,8 @@ export const ERR_CODEX_SLOW = tr('o Codex demorou demais com as mensagens anteri
 export const ERR_CODEX_NOT_CONFIRMED = tr('o auxiliar do Codex não confirmou a entrega');
 export const ERR_CODEX_HOME = tr('a pasta da conta do Codex deste agente é desconhecida');
 export const ERR_CODEX_REFUSED = tr('o codex queue não aceitou a mensagem');
-export const ERR_OPENCODE_UNAVAILABLE = 'infiniacode messages are off (the infiniacode service was not found)';
-export const ERR_OPENCODE_REFUSED = 'infiniacode did not accept the message';
+export const ERR_OPENCODE_UNAVAILABLE = tr('mensagens ao infiniacode desligadas (o serviço do infiniacode não foi encontrado)');
+export const ERR_OPENCODE_REFUSED = tr('o infiniacode não aceitou a mensagem');
 
 const ERROR_MAX = 300;
 const ID_MAX = 300;

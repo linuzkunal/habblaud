@@ -377,7 +377,7 @@ export function terminalFooter(agent: AgentInfo | undefined, agents: readonly Ag
       // quando ele chegou): os botões não vêm, então diz onde responder.
       const hint =
         agent.provider === 'opencode'
-          ? `${text} · answer in the infiniacode window (this one has free-text fields, or is still arriving)`
+          ? tr('{0} · responda na janela do infiniacode (esta tem campos de texto livre, ou ainda está chegando)', [text])
           : agent.provider === 'codex'
           ? tr('{0} · responda no Codex: este pedido não chegou ao Habblaud ou passou do tempo de espera', [text])
           : tr('{0} · responda no Claude Code: este pedido não chegou ao Habblaud ou passou do tempo de espera', [text]);
