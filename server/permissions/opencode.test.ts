@@ -102,3 +102,25 @@ describe('M5: deny and interrupt', () => {
     expect(posts[0].body).toEqual({ decision: 'reject', message: 'no' });
   });
 });
+
+describe('L7: no leftover retries', () => {
+  it('forgets a skipped item once it vanishes from infiniacode', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'oc-'));
+    const file = join(dir, 'service.json');
+    writeFileSync(file, JSON.stringify({ url: 'http://x', password: 'p' }));
+    let present = true;
+    const fetchImpl = (async (url: string) => {
+      if (url.endsWith('/api/session/active')) return new Response(JSON.stringify({ data: { ses_q: {} } }));
+      if (url.endsWith('/form')) return new Response(JSON.stringify({ data: present ? [form] : [] }));
+      return new Response(JSON.stringify({ data: [] }));
+    }) as unknown as typeof fetch;
+    const registry = { register: () => ({ skip: 'no-viewers' }), wait: () => undefined };
+    const asks = new OpencodeAsks({ registry: registry as never, serviceFile: file, fetchImpl });
+    await asks.poll();
+    const internals = asks as unknown as { pendingRaw: Map<string, unknown> };
+    expect(internals.pendingRaw.size).toBe(1);
+    present = false;
+    await asks.poll();
+    expect(internals.pendingRaw.size).toBe(0);
+  });
+});

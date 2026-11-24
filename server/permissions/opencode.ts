@@ -194,6 +194,7 @@ export class OpencodeAsks {
         t.cancel?.();
         t.done = true;
         this.items.delete(key);
+        this.pendingRaw.delete(key); // L7: an item skipped earlier (no page open) must not linger
       }
     } catch (err) {
       log.warn(`infiniacode asks: ${errMsg(err)}`);
