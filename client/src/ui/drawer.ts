@@ -282,13 +282,24 @@ class AgentView {
     this.title = h('p', { class: 'ui-hero__title' });
     // Fork: infiniacode session id + the command that opens it in a terminal (copy buttons).
     this.sessionId = h('code', { class: 'ui-session__id' });
+    const termCmd = () => (this.last ? `cd ${JSON.stringify(this.ctx.store.room(this.last.roomId)?.path ?? '.')} && infiniacode --session ${this.last.sessionId}` : '');
+    const cmdBtn = h('button', { class: 'ui-btn ui-btn--sm ui-session__cmd', type: 'button', title: tr('Copiar o comando para abrir no terminal'), text: tr('Copiar comando do terminal') });
+    cmdBtn.addEventListener('click', async () => {
+      const ok = await copyText(termCmd());
+      setText(cmdBtn, ok ? tr('Copiado!') : tr('Não foi possível copiar'));
+      setTimeout(() => setText(cmdBtn, tr('Copiar comando do terminal')), 1400);
+    });
     this.sessionRow = h(
       'div',
       { class: 'ui-session', hidden: true },
-      h('span', { class: 'ui-session__label', text: tr('Sessão') }),
-      this.sessionId,
-      copyButton(() => this.last?.sessionId ?? '', tr('Copiar o id da sessão')),
-      copyButton(() => (this.last ? `cd ${JSON.stringify(this.ctx.store.room(this.last.roomId)?.path ?? '.')} && infiniacode --session ${this.last.sessionId}` : ''), tr('Copiar o comando para abrir no terminal')),
+      h(
+        'div',
+        { class: 'ui-session__line' },
+        h('span', { class: 'ui-session__label', text: tr('Sessão') }),
+        this.sessionId,
+        copyButton(() => this.last?.sessionId ?? '', tr('Copiar o id da sessão')),
+      ),
+      cmdBtn,
     );
     this.accChip = createAccountChip('md');
     this.accName = h('span', { class: 'ui-hero__acc-name' });

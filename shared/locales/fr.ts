@@ -3328,4 +3328,5 @@ export const FR: Readonly<Record<string, string>> = {
   "Escolher uma pasta no Finder": "Choisir un dossier dans le Finder",
   "Escolha a pasta na janela do Finder…": "Choisissez le dossier dans la fenêtre du Finder…",
   "Não abriu o seletor de pastas: {0}": "Le sélecteur de dossiers ne s’est pas ouvert : {0}",
+  "Copiar comando do terminal": "Copier la commande du terminal",
 };
