@@ -3322,4 +3322,6 @@ export const FR: Readonly<Record<string, string>> = {
   "Falhou": "Échec",
   "Fazendo uma pergunta": "Vous pose une question",
   "Começa uma sessão nova nesta sala (pasta já escolhida)": "Démarre une nouvelle session dans cette salle (dossier déjà choisi)",
+  "Copiar o id da sessão": "Copier l’id de la session",
+  "Copiar o comando para abrir no terminal": "Copier la commande pour l’ouvrir dans un terminal",
 };

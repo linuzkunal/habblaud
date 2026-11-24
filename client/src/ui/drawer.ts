@@ -214,6 +214,8 @@ class AgentView {
   private statusText: HTMLElement;
   private statusSince: HTMLElement;
   private followBtn: HTMLButtonElement;
+  private sessionRow!: HTMLElement;
+  private sessionId!: HTMLElement;
   /** infiniacode only: off-board (interrupt + archive the session). Two clicks. */
   private offBtn!: HTMLButtonElement;
   private offConfirm = false;
@@ -278,6 +280,16 @@ class AgentView {
     this.name = h('h2', { class: 'ui-hero__name' });
     this.role = h('span', { class: 'ui-role' });
     this.title = h('p', { class: 'ui-hero__title' });
+    // Fork: infiniacode session id + the command that opens it in a terminal (copy buttons).
+    this.sessionId = h('code', { class: 'ui-session__id' });
+    this.sessionRow = h(
+      'div',
+      { class: 'ui-session', hidden: true },
+      h('span', { class: 'ui-session__label', text: tr('Sessão') }),
+      this.sessionId,
+      copyButton(() => this.last?.sessionId ?? '', tr('Copiar o id da sessão')),
+      copyButton(() => (this.last ? `cd ${JSON.stringify(this.ctx.store.room(this.last.roomId)?.path ?? '.')} && infiniacode --session ${this.last.sessionId}` : ''), tr('Copiar o comando para abrir no terminal')),
+    );
     this.accChip = createAccountChip('md');
     this.accName = h('span', { class: 'ui-hero__acc-name' });
     this.accProv = createProviderTag('ui-prov--xs');
@@ -413,6 +425,7 @@ class AgentView {
       h('div', { class: 'ui-hero' }, this.avatar, heroText),
       this.character.el,
       this.title,
+      this.sessionRow,
       this.gone,
       statusRow,
       this.termBtn,
@@ -591,6 +604,9 @@ class AgentView {
     setVariant(this.role, 'ui-role--', a.kind);
     setText(this.title, a.title ?? '');
     setHidden(this.title, !a.title);
+    const ic = a.provider === 'opencode';
+    setHidden(this.sessionRow, !ic);
+    if (ic) setText(this.sessionId, a.sessionId);
     setTitle(this.title, a.title ?? '');
     updateAccountChip(this.accChip, account, a.account, a.provider);
     setText(this.accName, account?.name ?? a.account);
