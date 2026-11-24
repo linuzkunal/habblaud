@@ -157,3 +157,18 @@ describe('L8: always allow, with the safeguard', () => {
     }
   });
 });
+
+describe('single-choice questions (string field with options)', () => {
+  const single: OcForm = { id: 'f', sessionID: 's', fields: [{ key: 'q0', type: 'string', title: 'Pick one', options: [{ value: 'A', label: 'A' }, { value: 'B', label: 'B' }] }] };
+  it('become a single-select card and answer with the chosen value', () => {
+    const f = askableFields(single)!;
+    expect(f).toHaveLength(1);
+    const ask = formToAsk(f) as { questions: { multiSelect: boolean; options: unknown[] }[] };
+    expect(ask.questions[0].multiSelect).toBe(false);
+    expect(ask.questions[0].options).toHaveLength(2);
+    expect(answersToForm(f, [{ question: 0, options: [1] }])).toEqual({ q0: 'B' });
+  });
+  it('a free-text string field (no options) stays infiniacode-only', () => {
+    expect(askableFields({ ...single, fields: [{ key: 'q', type: 'string', title: 'Why?' }] })).toBeUndefined();
+  });
+});

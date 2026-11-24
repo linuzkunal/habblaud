@@ -64,6 +64,8 @@ export function askableFields(form: OcForm): OcField[] | undefined {
   for (const f of shown) {
     if (f.when?.length) return undefined;
     if (f.type === 'multiselect' && f.options?.length) continue;
+    // Single choice: infiniacode sends a string field with options (multiple choice uses multiselect).
+    if (f.type === 'string' && f.options?.length) continue;
     if (f.type === 'boolean') continue;
     return undefined;
   }
@@ -80,7 +82,7 @@ export function formToAsk(fields: OcField[]): Rec {
       return {
         question,
         header,
-        multiSelect: f.maxItems !== 1,
+        multiSelect: f.type === 'multiselect' && f.maxItems !== 1,
         options: (f.options ?? []).map((o) => ({ label: o.label, ...(o.description ? { description: o.description } : {}) })),
       };
     }),
@@ -88,13 +90,16 @@ export function formToAsk(fields: OcField[]): Rec {
 }
 
 /** Office answers (by position) → infiniacode form answer (by field key). */
-export function answersToForm(fields: OcField[], answers: PermissionAnswer[]): Record<string, string[] | boolean> {
-  const out: Record<string, string[] | boolean> = {};
+export function answersToForm(fields: OcField[], answers: PermissionAnswer[]): Record<string, string | string[] | boolean> {
+  const out: Record<string, string | string[] | boolean> = {};
   for (const a of answers) {
     const f = fields[a.question];
     if (!f) continue;
     if (f.type === 'boolean') out[f.key] = (a.options ?? [])[0] === 0;
-    else out[f.key] = (a.options ?? []).map((i) => f.options?.[i]?.value).filter((v): v is string => typeof v === 'string');
+    else if (f.type === 'string') {
+      const v = f.options?.[(a.options ?? [])[0]]?.value;
+      if (typeof v === 'string') out[f.key] = v;
+    } else out[f.key] = (a.options ?? []).map((i) => f.options?.[i]?.value).filter((v): v is string => typeof v === 'string');
   }
   return out;
 }
