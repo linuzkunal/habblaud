@@ -79,6 +79,18 @@ export interface OpencodeSourceOptions {
 }
 
 /** Path of the service descriptor (OPENCODE_SERVICE_FILE overrides it, for tests or another install). */
+/** M2: every string of a message masked (tokens, keys, passwords…) before it is written to the local mirror. */
+export function maskDeep<T>(v: T): T {
+  if (typeof v === 'string') return maskSecrets(v) as T;
+  if (Array.isArray(v)) return v.map(maskDeep) as T;
+  if (v && typeof v === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [k, x] of Object.entries(v as Record<string, unknown>)) out[k] = k === 'id' ? x : maskDeep(x);
+    return out as T;
+  }
+  return v;
+}
+
 export function serviceFile(env: NodeJS.ProcessEnv, home: string): string {
   return env.OPENCODE_SERVICE_FILE?.trim() || join(home, '.local', 'state', 'opencode', 'service.json');
 }
@@ -223,7 +235,7 @@ export class OpencodeSource implements AgentSource {
     for (const m of [...(msgs.data ?? [])].reverse()) {
       if (t.written.has(m.id)) continue;
       if (m.type === 'assistant' && !m.time?.completed) break; // still streaming: keep order, wait for it
-      lines.push(JSON.stringify(m));
+      lines.push(JSON.stringify(maskDeep(m)));
       t.written.add(m.id);
     }
     if (!lines.length) return;

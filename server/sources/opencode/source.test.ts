@@ -16,3 +16,13 @@ describe('describeOpencodeTool', () => {
     expect(describeOpencodeTool('mystery', {}).text.length).toBeGreaterThan(0);
   });
 });
+
+import { maskDeep } from './source';
+describe('M2: mirror lines are masked', () => {
+  it('masks secrets in nested tool output, keeps ids', () => {
+    const m = { id: 'msg_1', content: [{ type: 'tool', state: { content: [{ type: 'text', text: 'export GITHUB_TOKEN=ghp_abcdefghijklmnopqrstuvwxyz0123456789' }] } }] };
+    const out = JSON.stringify(maskDeep(m));
+    expect(out).not.toContain('ghp_abcdefghijklmnopqrstuvwxyz0123456789');
+    expect(out).toContain('msg_1');
+  });
+});
