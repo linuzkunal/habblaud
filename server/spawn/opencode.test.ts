@@ -43,8 +43,21 @@ describe('opencode control', () => {
     const calls: Call[] = [];
     const ctl = createOpencodeControl(svc(), { fetchImpl: fakeFetch(calls, () => [200, { data: {} }]) });
     expect(await ctl.stop('ses_abc')).toEqual({ ok: true });
-    expect(calls.map((c) => c.method)).toEqual(['POST', 'PATCH']);
-    expect(calls[1].body).toEqual({ archived: true });
+    expect(calls.map((c) => c.method)).toEqual(['POST', 'GET', 'PATCH']);
+    expect(calls[2].body).toEqual({ archived: true });
     expect(await ctl.stop('../x')).toMatchObject({ ok: false, status: 400 });
+  });
+});
+
+describe('L1: off-board stops subagents too', () => {
+  it('interrupts each child session before archiving the parent', async () => {
+    const calls: Call[] = [];
+    const ctl = createOpencodeControl(svc(), {
+      fetchImpl: fakeFetch(calls, (c) => (c.url.includes('parentID=ses_p') ? [200, { data: [{ id: 'ses_k1' }, { id: 'ses_k2' }] }] : [200, { data: {} }])),
+    });
+    expect(await ctl.stop('ses_p')).toEqual({ ok: true });
+    expect(calls.map((c) => `${c.method} ${c.url.replace('http://127.0.0.1:1', '').split('?')[0]}`)).toEqual([
+      'POST /api/session/ses_p/interrupt', 'GET /api/session', 'POST /api/session/ses_k1/interrupt', 'POST /api/session/ses_k2/interrupt', 'PATCH /api/session/ses_p',
+    ]);
   });
 });

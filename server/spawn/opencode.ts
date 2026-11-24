@@ -87,6 +87,10 @@ export function createOpencodeControl(serviceFile: string, opts: { fetchImpl?: t
     async stop(sessionId) {
       if (!SESSION_ID.test(sessionId)) return { ok: false, status: 400, error: 'invalid infiniacode session id' };
       await call('POST', `/api/session/${sessionId}/interrupt`, {}); // idle sessions may refuse: archiving still applies
+      // L1: its subagents (child sessions) stop too, otherwise they keep working after the off-board.
+      const kids = (await call('GET', `/api/session?parentID=${encodeURIComponent(sessionId)}&limit=100`)).json as { data?: { id?: string }[] } | undefined;
+      const list = Array.isArray(kids?.data) ? kids.data : []; // an odd reply must never break the off-board
+      for (const k of list) if (k?.id && SESSION_ID.test(k.id)) await call('POST', `/api/session/${k.id}/interrupt`, {});
       const archived = await call('PATCH', `/api/session/${sessionId}`, { archived: true });
       if (!archived.ok) return { ok: false, status: archived.status, error: `infiniacode could not archive the session: ${archived.text ?? ''}`.trim() };
       return { ok: true };
