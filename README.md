@@ -5,7 +5,7 @@
 <h1 align="center">Habblaud</h1>
 
 <p align="center">
-  <b>The virtual office for your Claude Code (and Codex) agents.</b><br />
+  <b>The virtual office for your Claude Code (and Codex, and infiniacode) agents.</b><br />
   Each project becomes a room, and each agent becomes a pixel-art character that shows, in real time, what it's doing.
 </p>
 
@@ -227,6 +227,36 @@ npm run codex:status       # confere
 Then **open Codex and approve the Habblaud hooks in `/hooks`**: Codex only runs a new hook after you
 approve it (Habblaud never writes that approval). With Habblaud in Docker, to send messages to Codex sessions,
 also keep `npm run codex:bridge` running on the Mac (see [Codex](#codex)).
+
+### 5. infiniacode / opencode in the office (optional)
+
+If you use **infiniacode** (or plain **opencode** v2), its sessions join the same office, with nothing to install
+in infiniacode: each project folder is a room (shared with Claude Code when both work in the same folder), each
+session is a character tagged **infiniacode**, and child sessions (subagents) sit next to it. Habblaud reads
+infiniacode's **background service** — the one every `infiniacode` window connects to — through its local API,
+once a second, read-only.
+
+What you get per character: status (**working** while the session runs; **waiting**, hand raised, when infiniacode
+asks you a permission or a question; **idle** for 20 minutes after the last update, then it leaves), the current
+activity (the latest tool call, e.g. "Editing App.tsx"), and the **terminal** (prompts, reasoning, answers, tool calls
+and their results). Answering, sending messages and the interactive terminal stay Claude Code / Codex only.
+
+```bash
+infiniacode                     # or: opencode service start — the background service must be running
+npm run build && HABBLAUD_WORLD=0 HABBLAUD_UPDATE_CHECK=0 npm start
+```
+
+It turns itself on when `~/.local/state/opencode/service.json` exists (the service writes its address and password
+there; Habblaud re-reads it every second, so `opencode service restart` is fine). Check it in `/api/health`: a source
+`infiniacode` with `"ok": true`. Settings: `HABBLAUD_OPENCODE`, `OPENCODE_SERVICE_FILE`, `HABBLAUD_OPENCODE_MIRROR` (see
+[Configuration](#configuration)).
+
+- **Terminal mirror:** infiniacode has no transcript file, so Habblaud appends each session's *finished* messages to
+  `~/.habblaud/opencode/<session>.jsonl` (folder `0700`, files `0600`, never sent anywhere) and the terminal reads that.
+  They are not cleaned up automatically: delete the folder whenever you like.
+- **Node mode only:** the service listens on the host's `127.0.0.1`, which the Docker container can't reach.
+- **Privacy:** session folders show up as room names. If you work on private/company projects, keep
+  [Habblaud World](#habblaud-world) off (`HABBLAUD_WORLD=0`) — it is on by default and shares the office with the server.
 
 ### Open on your phone (optional)
 
@@ -729,6 +759,9 @@ Everything works without configuring anything. If you need to adjust something, 
 | `HABBLAUD_CODEX` | on | `0` turns off Codex in the office. |
 | `HABBLAUD_CODEX_DIRS` | automatic detection | Codex folders, comma-separated (instead of `~/.codex*` and `CODEX_HOME`). |
 | `HABBLAUD_CODEX_BIN` | `codex` from PATH (on Windows, `codex.exe`) | The Codex binary that delivers the messages (`codex queue`), in Node mode or in `npm run codex:bridge`. |
+| `HABBLAUD_OPENCODE` | on (when the service file exists) | `0` turns off infiniacode / opencode in the office. See [infiniacode / opencode](#5-infiniacode--opencode-in-the-office-optional). |
+| `OPENCODE_SERVICE_FILE` | `~/.local/state/opencode/service.json` | Where the infiniacode / opencode background service writes its address and password. |
+| `HABBLAUD_OPENCODE_MIRROR` | `~/.habblaud/opencode` | Where the terminal mirror of infiniacode sessions is written (one `<session>.jsonl` per session, `0600`). |
 | `HABBLAUD_UPDATE_CHECK` | on | `0` turns off the new-version check (a request to the repository's releases on GitHub every 6 h). |
 | `HABBLAUD_LANG` | system language (except English), otherwise `pt-BR` | Language of the texts the server builds (activities, notices, logs): `pt-BR`, `en`, `es` or `fr`. The interface follows the browser or the choice in Settings › Language. See [Languages](#languages). |
 | `HABBLAUD_ACCOUNTS` | — | JSON to customize name, letter or color, matched by the account folder name. E.g. `[{"id":".claude-conta2","name":"Trabalho","short":"T","color":"#5cc97b"}]`. |
