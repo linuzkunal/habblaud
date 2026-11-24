@@ -523,6 +523,8 @@ export class PermissionRegistry {
       return 'ok';
     }
     if (wrongKind(p.info, d)) return 'invalid-answer';
+    // infiniacode refuses values outside the options: an "Other" text would be dropped, so refuse it here, visibly.
+    if (d.behavior === 'answer' && p.info.provider === 'opencode' && d.answers?.some((a) => a.other)) return 'invalid-answer';
     if (d.behavior === 'answer') return this.answer(p, d.answers);
     const outcome: WaitResult = { status: 'decided', behavior: d.behavior };
     if (d.message) outcome.message = d.message;

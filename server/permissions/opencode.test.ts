@@ -30,3 +30,16 @@ describe('infiniacode asks bridge', () => {
     expect(permissionToTool({ id: 'p', sessionID: 's', action: 'edit', resources: ['/a/b.go'] }).input).toEqual({ file_path: '/a/b.go' });
   });
 });
+
+import { PermissionRegistry } from './registry';
+describe('H1: no free-text "Other" answers for infiniacode', () => {
+  it('the registry refuses an infiniacode answer carrying "Other" text, accepts options', () => {
+    const agent = { id: 'ses_q', kind: 'main', provider: 'opencode', status: 'waiting', sessionId: 'ses_q' } as never;
+    const office = { get: (id: string) => (id === 'ses_q' ? agent : undefined), list: () => [agent], markDirty() {}, addActivity() {}, noticePermission() {} };
+    const reg = new PermissionRegistry({ office, viewers: () => 1 } as never);
+    const r = reg.register({ provider: 'opencode', session_id: 'ses_q', tool_name: 'AskUserQuestion', tool_input: formToAsk(askableFields(form)!) });
+    if (!('id' in r)) throw new Error('not registered: ' + JSON.stringify(r));
+    expect(reg.decide(r.id, { behavior: 'answer', answers: [{ question: 0, other: 'something else' }, { question: 1, options: [0] }] })).toBe('invalid-answer');
+    expect(reg.decide(r.id, { behavior: 'answer', answers: [{ question: 0, options: [1] }, { question: 1, options: [0] }] })).toBe('ok');
+  });
+});

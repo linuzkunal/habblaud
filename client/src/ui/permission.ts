@@ -496,12 +496,14 @@ export class PermissionCard {
   /** Monta as perguntas de um pedido (só quando o pedido muda: a seleção sobrevive aos snapshots). */
   private buildAsk(p: PermissionRequestInfo): void {
     this.askId = p.id;
-    this.askRefs = (p.questions ?? []).map((q) => this.askQuestion(p.id, q));
+    // infiniacode forms only accept the listed options (a custom value is refused): no "Other" there.
+    const noOther = p.provider === 'opencode';
+    this.askRefs = (p.questions ?? []).map((q) => this.askQuestion(p.id, q, noOther));
     this.askForm.replaceChildren(...this.askRefs.map((r) => r.el));
   }
 
   /** Uma pergunta: rádios (escolha única) ou caixas (várias), cada opção com a descrição, e o "Outro" com texto. */
-  private askQuestion(requestId: string, q: AskQuestion): AskRefs {
+  private askQuestion(requestId: string, q: AskQuestion, noOther = false): AskRefs {
     const name = `ask-${requestId}-${q.index}`;
     const input = (value: string) => h('input', { class: 'ui-perm-ask__input', type: q.multiSelect ? 'checkbox' : 'radio', attrs: { name, value } });
     const optionText = (label: string, description?: string) =>
@@ -534,7 +536,7 @@ export class PermissionCard {
       h('legend', { class: 'ui-perm-ask__legend' }, q.header ? h('span', { class: 'ui-ask__tag', text: q.header }) : null, h('span', { class: 'ui-ask__question', text: q.question })),
       h('p', { class: 'ui-ask__hint', text: q.multiSelect ? tr('Pode escolher mais de uma') : tr('Escolha uma') }),
       ...options.map(({ input: box, o }) => h('label', { class: 'ui-perm-ask__opt' }, box, optionText(o.label, o.description))),
-      h('div', { class: 'ui-perm-ask__other' }, h('label', { class: 'ui-perm-ask__opt' }, other, optionText(tr('Outro'))), text),
+      noOther ? null : h('div', { class: 'ui-perm-ask__other' }, h('label', { class: 'ui-perm-ask__opt' }, other, optionText(tr('Outro'))), text),
     );
     return { q, el, options: options.map((x) => x.input), other, text };
   }
