@@ -236,13 +236,21 @@ export class OpencodeAsks {
     const itemId = key.slice(key.indexOf(':') + 1);
     while (!t.done && t.regId) {
       const w = this.opts.registry.wait(t.regId, WAIT_MS);
-      if (!w) return;
+      if (!w) {
+        this.items.delete(key); // the registry dropped it: register again on the next poll
+        return;
+      }
       t.cancel = w.cancel;
       const r = await w.result;
       t.cancel = undefined;
       if (t.done || r.status === 'pending') continue;
       t.done = true;
-      if (r.status !== 'decided') return; // released: answer it in infiniacode
+      if (r.status !== 'decided') {
+        // M1: released without an answer (no page open, expired, agent briefly gone…): forget it so the next poll
+        // registers it again while infiniacode still waits. "Answer in terminal" (Kunal's choice) stays released.
+        if (r.reason !== 'terminal' && r.reason !== 'answered') this.items.delete(key);
+        return;
+      }
       try {
         if (t.kind === 'form') {
           if (r.behavior !== 'answer') return;

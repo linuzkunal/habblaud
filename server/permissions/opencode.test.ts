@@ -43,3 +43,37 @@ describe('H1: no free-text "Other" answers for infiniacode', () => {
     expect(reg.decide(r.id, { behavior: 'answer', answers: [{ question: 0, options: [1] }, { question: 1, options: [0] }] })).toBe('ok');
   });
 });
+
+import { OpencodeAsks } from './opencode';
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+describe('M1: a released card is registered again', () => {
+  it('unwatched → re-registered on the next poll; terminal → not', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'oc-'));
+    const file = join(dir, 'service.json');
+    writeFileSync(file, JSON.stringify({ url: 'http://x', password: 'p' }));
+    const fetchImpl = (async (url: string) => {
+      if (url.endsWith('/api/session/active')) return new Response(JSON.stringify({ data: { ses_q: {} } }));
+      if (url.endsWith('/form')) return new Response(JSON.stringify({ data: [form] }));
+      return new Response(JSON.stringify({ data: [] }));
+    }) as unknown as typeof fetch;
+    let registers = 0;
+    let reason: 'unwatched' | 'terminal' = 'unwatched';
+    const registry = {
+      register: () => ({ id: `p${++registers}`, expiresAt: 0 }),
+      wait: () => ({ result: Promise.resolve({ status: 'released', reason }), cancel() {} }),
+    };
+    const asks = new OpencodeAsks({ registry: registry as never, serviceFile: file, fetchImpl });
+    await asks.poll();
+    await new Promise((r) => setTimeout(r, 0));
+    await asks.poll();
+    expect(registers).toBe(2); // released as unwatched → came back
+    reason = 'terminal';
+    await new Promise((r) => setTimeout(r, 0));
+    await asks.poll();
+    await new Promise((r) => setTimeout(r, 0));
+    await asks.poll();
+    expect(registers).toBe(3); // released by "answer in terminal" → stays released
+  });
+});
