@@ -11147,3 +11147,17 @@ html.is-replay #world {
 .ui-world-chip__visitors[hidden] {
   display: none;
 }
+
+/* Fork: staff bar (On-board / Off-board employee) in place of the usage cards. */
+.ui-staff__btn { cursor: pointer; text-align: left; font: inherit; color: inherit; width: 250px; min-width: 190px; }
+.ui-staff__btn:hover { border-color: var(--ui-line-strong); background: var(--ui-bg-soft); }
+.ui-staff__btn:first-child { --acc: #3ccf7a; }
+.ui-staff__btn:last-child { --acc: #e8735a; }
+.ui-staff__icon { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 7px; font-size: 17px;
+  background: color-mix(in srgb, var(--acc) 30%, transparent); }
+.ui-staff__text { display: flex; flex-direction: column; min-width: 0; }
+.ui-staff__title { font-weight: 700; white-space: nowrap; }
+.ui-staff__sub { font-size: 12px; opacity: .7; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ui-staff__list { list-style: none; margin: 6px 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 50vh; overflow: auto; }
+.ui-staff__row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.ui-staff__who { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

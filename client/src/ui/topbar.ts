@@ -8,7 +8,7 @@ import { FALLBACK_MARK, ICONS } from './icons';
 import { computeCounters, shellLine, shellWaitIn, shellWaitingAgents, waitingAgents, type Counters } from './model';
 import { TIMELAPSE_ICONS } from './timelapse';
 import { focusPermission, nextPermissionAgent, permissionAgents } from './permission';
-import { UsageCards } from './usage';
+import { StaffBar } from './staff';
 import { VersionChip } from './version';
 import { wordmark } from './widgets';
 import { tr } from '../../../shared/i18n';
@@ -40,7 +40,8 @@ export class TopBar implements UiComponent {
   private shellsBtn: HTMLButtonElement;
   /** Próximo agente do botão de shells (cliques seguidos passam por todos, do que espera há mais tempo). */
   private shellCursor = 0;
-  private usage: UsageCards;
+  /** Fork: On-board / Off-board buttons in place of the usage cards. */
+  private staff!: StaffBar;
   private version: VersionChip;
   private hadOpen = false;
   private sidebarBtn: HTMLButtonElement;
@@ -100,7 +101,6 @@ export class TopBar implements UiComponent {
       counterWrap.insertBefore(this.shellsBtn, this.counters.get('waiting')!.el);
     }
 
-    this.usage = new UsageCards(ctx);
 
     this.sidebarBtn = iconButton(ICONS.sidebar, tr('Painel lateral ( [ )'), () => ctx.togglePanel('sidebar'), 'ui-btn-sidebar');
     this.feedBtn = iconButton(ICONS.feed, tr('Feed de atividade ( ] )'), () => ctx.togglePanel('feed'), 'ui-btn-feed');
@@ -116,6 +116,7 @@ export class TopBar implements UiComponent {
     this.spawnBtn = iconButton(ICONS.newAgent, tr('Novo agente: começa uma sessão do Claude Code no computador'), () => this.spawnPanel.toggle(this.spawnBtn), 'ui-btn-spawn');
     this.spawnBtn.setAttribute('aria-haspopup', 'dialog');
     this.spawnBtn.hidden = true;
+    this.staff = new StaffBar(ctx, (anchor) => this.spawnPanel.toggle(anchor));
     this.version = new VersionChip(ctx, this.settingsBtn);
     this.status = h('div', { class: 'ui-topbar__status' }, this.pill, this.version.el, this.demoBadge);
     const viewGroup = h(
@@ -152,7 +153,7 @@ export class TopBar implements UiComponent {
         ),
       ),
       counterWrap,
-      this.usage.el,
+      this.staff.el,
       h('div', { class: 'ui-topbar__right' }, viewGroup, panelGroup),
     );
   }
@@ -217,7 +218,7 @@ export class TopBar implements UiComponent {
     );
     this.renderShells(c.shells, now);
 
-    this.usage.render();
+    this.staff.render();
     this.version.render();
     setHidden(this.spawnBtn, !(access().spawn || access().opencodeSpawn) || store.mock || store.replaying);
 
