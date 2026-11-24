@@ -401,7 +401,8 @@ export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: Ser
           messages: !!deps.messages && trusted(req, 'messages'),
           terminal: !!terminals && trusted(req, 'terminal'),
           spawn: !!deps.spawn && trusted(req, 'spawn'),
-          opencodeSpawn: !!deps.opencodeControl && trusted(req, 'spawn'),
+          // Only present when infiniacode control exists, so the access shape is unchanged without it.
+          ...(deps.opencodeControl ? { opencodeSpawn: trusted(req, 'spawn') } : {}),
           world: !!deps.world && !!deps.terminal && !remote && isLoopbackHost(req.headers.host),
         };
         sendJson(res, 200, access);
