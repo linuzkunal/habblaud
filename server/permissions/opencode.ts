@@ -271,6 +271,11 @@ export class OpencodeAsks {
           const body = { decision, ...(r.behavior === 'deny' && r.message ? { message: r.message } : {}) };
           const res = await this.call('POST', `/api/session/${t.sessionId}/permission/${itemId}/reply`, body);
           if (!res.ok) log.warn(`infiniacode asks: permission reply refused (HTTP ${res.status})`);
+          // M5: "deny and interrupt" also stops what the session is doing.
+          if (r.behavior === 'deny' && r.interrupt) {
+            const stop = await this.call('POST', `/api/session/${t.sessionId}/interrupt`, {});
+            if (!stop.ok) log.warn(`infiniacode asks: interrupt refused (HTTP ${stop.status})`);
+          }
         }
       } catch (err) {
         log.warn(`infiniacode asks: reply failed (${errMsg(err)})`);

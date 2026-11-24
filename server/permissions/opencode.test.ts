@@ -77,3 +77,28 @@ describe('M1: a released card is registered again', () => {
     expect(registers).toBe(3); // released by "answer in terminal" → stays released
   });
 });
+
+describe('M5: deny and interrupt', () => {
+  it('rejects the permission, then interrupts the session', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'oc-'));
+    const file = join(dir, 'service.json');
+    writeFileSync(file, JSON.stringify({ url: 'http://x', password: 'p' }));
+    const posts: { path: string; body: unknown }[] = [];
+    const fetchImpl = (async (url: string, init: RequestInit) => {
+      const path = url.replace('http://x', '');
+      if (init.method === 'POST') posts.push({ path, body: init.body ? JSON.parse(String(init.body)) : undefined });
+      if (path === '/api/session/active') return new Response(JSON.stringify({ data: { ses_p: {} } }));
+      if (path.endsWith('/permission')) return new Response(JSON.stringify({ data: [{ id: 'per_1', sessionID: 'ses_p', action: 'bash', resources: ['rm -rf x'] }] }));
+      return new Response(JSON.stringify({ data: [] }));
+    }) as unknown as typeof fetch;
+    const registry = {
+      register: () => ({ id: 'p1', expiresAt: 0 }),
+      wait: () => ({ result: Promise.resolve({ status: 'decided', behavior: 'deny', message: 'no', interrupt: true }), cancel() {} }),
+    };
+    const asks = new OpencodeAsks({ registry: registry as never, serviceFile: file, fetchImpl });
+    await asks.poll();
+    await new Promise((r) => setTimeout(r, 10));
+    expect(posts.map((p) => p.path)).toEqual(['/api/session/ses_p/permission/per_1/reply', '/api/session/ses_p/interrupt']);
+    expect(posts[0].body).toEqual({ decision: 'reject', message: 'no' });
+  });
+});
