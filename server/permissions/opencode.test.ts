@@ -124,3 +124,36 @@ describe('L7: no leftover retries', () => {
     expect(internals.pendingRaw.size).toBe(0);
   });
 });
+
+import { alwaysSuggestion } from './opencode';
+describe('L8: always allow, with the safeguard', () => {
+  it('offers the rule infiniacode would save', () => {
+    expect(alwaysSuggestion({ id: 'p', sessionID: 's', action: 'bash', resources: ['go test ./...'], save: ['go test *'] })).toEqual([
+      { type: 'addRules', behavior: 'allow', destination: 'projectSettings', rules: [{ toolName: 'Bash', ruleContent: 'go test *' }] },
+    ]);
+  });
+  it('never offers it for env/, kubeconfigs or prod', () => {
+    for (const r of ['cat env/prod-k8s-kubeconfig', 'kubectl --kubeconfig x get pods', 'KUBECONFIG=/a/prod kubectl get ns', 'curl console.dcvaults.com']) {
+      expect(alwaysSuggestion({ id: 'p', sessionID: 's', action: 'bash', resources: [r], save: ['*'] })).toEqual([]);
+    }
+    expect(alwaysSuggestion({ id: 'p', sessionID: 's', action: 'read', resources: ['/w/tokenfactory/env/prod-k8s-kubeconfig'] })).toEqual([]);
+  });
+  it('always allow → decision always; plain allow → once', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'oc-'));
+    const file = join(dir, 'service.json');
+    writeFileSync(file, JSON.stringify({ url: 'http://x', password: 'p' }));
+    for (const [suggestion, want] of [[0, 'always'], [undefined, 'once']] as const) {
+      const bodies: unknown[] = [];
+      const fetchImpl = (async (url: string, init: RequestInit) => {
+        if (init.method === 'POST' && url.endsWith('/reply')) bodies.push(JSON.parse(String(init.body)));
+        if (url.endsWith('/api/session/active')) return new Response(JSON.stringify({ data: { ses_p: {} } }));
+        if (url.endsWith('/permission')) return new Response(JSON.stringify({ data: [{ id: 'per_1', sessionID: 'ses_p', action: 'bash', resources: ['go test'], save: ['go test *'] }] }));
+        return new Response(JSON.stringify({ data: [] }));
+      }) as unknown as typeof fetch;
+      const registry = { register: () => ({ id: 'p1', expiresAt: 0 }), wait: () => ({ result: Promise.resolve({ status: 'decided', behavior: 'allow', suggestion }), cancel() {} }) };
+      await new OpencodeAsks({ registry: registry as never, serviceFile: file, fetchImpl }).poll();
+      await new Promise((r) => setTimeout(r, 10));
+      expect(bodies).toEqual([{ decision: want }]);
+    }
+  });
+});

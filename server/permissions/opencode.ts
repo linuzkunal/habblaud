@@ -46,6 +46,8 @@ export interface OcPermission {
   sessionID: string;
   action?: string;
   resources?: string[];
+  /** The patterns infiniacode stores when the answer is "always". */
+  save?: string[];
   message?: string;
 }
 
@@ -95,6 +97,18 @@ export function answersToForm(fields: OcField[], answers: PermissionAnswer[]): R
     else out[f.key] = (a.options ?? []).map((i) => f.options?.[i]?.value).filter((v): v is string => typeof v === 'string');
   }
   return out;
+}
+
+/** L8 safeguard: never offer "always allow" for anything touching remote clusters / kubeconfigs / env files. */
+export const PROTECTED = /(^|[\s/'"=])env\/|kubeconfig|prod-k8s|console\.dcvaults\.com|KUBECONFIG=/i;
+
+/** L8: the "always allow" suggestion for a permission (shown as the rule it would save), or none when protected. */
+export function alwaysSuggestion(p: OcPermission): unknown[] {
+  const patterns = (p.save?.length ? p.save : p.resources) ?? [];
+  const all = [p.action ?? '', ...(p.resources ?? []), ...patterns].join(' ');
+  if (!patterns.length || PROTECTED.test(all)) return [];
+  const tool = permissionToTool(p).tool;
+  return [{ type: 'addRules', behavior: 'allow', destination: 'projectSettings', rules: patterns.slice(0, 4).map((r) => ({ toolName: tool, ruleContent: r })) }];
 }
 
 /** Permission request → hook-like tool name + input. */
@@ -227,7 +241,7 @@ export class OpencodeAsks {
     const t: Tracked = { kind: 'perm', sessionId: p.sessionID };
     this.items.set(key, t);
     const { tool, input } = permissionToTool(p);
-    this.register(key, t, { tool_name: tool, tool_input: input });
+    this.register(key, t, { tool_name: tool, tool_input: input, permission_suggestions: alwaysSuggestion(p) });
   }
 
   private register(key: string, t: Tracked, raw: Rec): void {
@@ -268,7 +282,8 @@ export class OpencodeAsks {
           const res = await this.call('POST', `/api/session/${t.sessionId}/form/${itemId}/reply`, { answer });
           if (!res.ok) log.warn(`infiniacode asks: form reply refused (HTTP ${res.status})`);
         } else {
-          const decision = r.behavior === 'allow' ? 'once' : 'reject';
+          // L8: "always allow" (a suggestion was picked) → infiniacode stores the rule; plain allow → once.
+          const decision = r.behavior === 'allow' ? (r.suggestion !== undefined ? 'always' : 'once') : 'reject';
           const body = { decision, ...(r.behavior === 'deny' && r.message ? { message: r.message } : {}) };
           const res = await this.call('POST', `/api/session/${t.sessionId}/permission/${itemId}/reply`, body);
           if (!res.ok) log.warn(`infiniacode asks: permission reply refused (HTTP ${res.status})`);
