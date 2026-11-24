@@ -308,9 +308,12 @@ export class SpawnPanel {
 
   private renderFolders(): void {
     const now = Date.now();
+    // Opened from a room: only that room's folder (no other projects, no "+ Other folder").
+    const shown = this.forced ? this.folders.filter((f) => f.path === this.forced) : this.folders;
+    setHidden(this.otherBtn, !!this.forced);
     const known = this.folders.some((f) => f.path === this.selected);
     this.folderList.replaceChildren(
-      ...this.folders.map((f) => {
+      ...shown.map((f) => {
         const on = f.path === this.selected && !this.typing;
         const when = ago(f.lastAt, now);
         return h(
