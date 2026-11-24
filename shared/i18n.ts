@@ -52,9 +52,9 @@ export function serverLocale(env: Record<string, string | undefined>, intl?: str
   if (own) return own;
   for (const v of [env.LC_ALL, env.LC_MESSAGES, env.LANG, intl]) {
     const n = normalizeLocale(v);
-    if (n && n !== 'en') return n;
+    if (n) return n;
   }
-  return 'pt-BR';
+  return 'en'; // fork default: English (upstream falls back to pt-BR and skips an English system)
 }
 
 function detect(): Locale {
@@ -75,7 +75,7 @@ function detect(): Locale {
       const n = normalizeLocale(l);
       if (n) return n;
     }
-    return 'pt-BR';
+    return 'en'; // fork default: English
   }
   const env = g.process?.env ?? {};
   // Os testes comparam textos em PT: ficam em PT mesmo numa máquina em outro idioma.

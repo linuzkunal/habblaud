@@ -43,13 +43,14 @@ describe('i18n', () => {
     expect(tr('{0} e {1}', ['um'])).toBe('um e {1}');
   });
 
-  it('servidor: HABBLAUD_LANG vale para qualquer idioma; do sistema, o inglês não conta', () => {
+  it('servidor: HABBLAUD_LANG vale para qualquer idioma; senão o do sistema; sem nada, inglês (padrão do fork)', () => {
     expect(serverLocale({ HABBLAUD_LANG: 'en' }, 'pt-BR')).toBe('en');
     expect(serverLocale({ HABBLAUD_LANG: 'es-MX', LANG: 'fr_FR.UTF-8' })).toBe('es');
-    // Mac com LANG em inglês e o container sem LANG (Intl en-US): o escritório fica em português.
-    expect(serverLocale({ LANG: 'en_US.UTF-8' }, 'en-US')).toBe('pt-BR');
-    expect(serverLocale({}, 'en-US')).toBe('pt-BR');
-    expect(serverLocale({ LANG: 'en_US.UTF-8' }, 'pt-BR')).toBe('pt-BR');
+    // Fork: an English system stays English, and nothing detected falls back to English.
+    expect(serverLocale({ LANG: 'en_US.UTF-8' }, 'en-US')).toBe('en');
+    expect(serverLocale({}, 'en-US')).toBe('en');
+    expect(serverLocale({})).toBe('en');
+    expect(serverLocale({}, 'pt-BR')).toBe('pt-BR');
     expect(serverLocale({ LANG: 'fr_FR.UTF-8' })).toBe('fr');
     expect(serverLocale({ LC_ALL: 'es_ES.UTF-8', LANG: 'en_US.UTF-8' })).toBe('es');
     expect(serverLocale({}, 'es-AR')).toBe('es');
