@@ -82,7 +82,7 @@ function copyButton(getText: () => string, label: string): HTMLButtonElement {
     setTitle(b, ok ? tr('Copiado!') : tr('Não foi possível copiar'));
     setTimeout(() => {
       b.classList.remove('is-done');
-      b.innerHTML = ICONS.copy;
+      b.innerHTML = b.classList.contains('ui-session__term') ? ICONS.terminal : ICONS.copy;
       setTitle(b, label);
     }, 1400);
   }, 'ui-icon-btn--sm');
@@ -283,23 +283,20 @@ class AgentView {
     // Fork: infiniacode session id + the command that opens it in a terminal (copy buttons).
     this.sessionId = h('code', { class: 'ui-session__id' });
     const termCmd = () => (this.last ? `cd ${JSON.stringify(this.ctx.store.room(this.last.roomId)?.path ?? '.')} && infiniacode --session ${this.last.sessionId}` : '');
-    const cmdBtn = h('button', { class: 'ui-btn ui-btn--sm ui-session__cmd', type: 'button', title: tr('Copiar o comando para abrir no terminal'), text: tr('Copiar comando do terminal') });
-    cmdBtn.addEventListener('click', async () => {
-      const ok = await copyText(termCmd());
-      setText(cmdBtn, ok ? tr('Copiado!') : tr('Não foi possível copiar'));
-      setTimeout(() => setText(cmdBtn, tr('Copiar comando do terminal')), 1400);
-    });
+    // One card in the same style as the title box: label + two icon buttons on top, the id below.
+    const cmdBtn = copyButton(termCmd, tr('Copiar comando do terminal'));
+    cmdBtn.innerHTML = ICONS.terminal;
+    cmdBtn.classList.add('ui-session__term');
     this.sessionRow = h(
       'div',
       { class: 'ui-session', hidden: true },
       h(
         'div',
-        { class: 'ui-session__line' },
+        { class: 'ui-session__head' },
         h('span', { class: 'ui-session__label', text: tr('Sessão') }),
-        this.sessionId,
-        copyButton(() => this.last?.sessionId ?? '', tr('Copiar o id da sessão')),
+        h('span', { class: 'ui-session__actions' }, copyButton(() => this.last?.sessionId ?? '', tr('Copiar o id da sessão')), cmdBtn),
       ),
-      cmdBtn,
+      this.sessionId,
     );
     this.accChip = createAccountChip('md');
     this.accName = h('span', { class: 'ui-hero__acc-name' });
