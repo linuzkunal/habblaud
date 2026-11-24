@@ -28,6 +28,7 @@ const IDLE_MS = 20 * 60 * 1000; // a session not updated for 20 min leaves the o
 const MAIN_ROLE = 'infiniacode';
 const MIRROR_EVERY = 2; // refresh a running session's terminal mirror every 2 polls
 const MIRROR_FETCH = 60; // catch-up read (first mirror, or a gap since the last one)
+const DOWN_AFTER = 3; // H3: failed polls in a row before infiniacode characters leave (service stopped)
 const MIRROR_STEP = 4; // steady-state read: just the newest few messages
 
 interface ServiceInfo {
@@ -134,6 +135,7 @@ export class OpencodeSource implements AgentSource {
   private timer?: NodeJS.Timeout;
   private tick = 0;
   private busy = false;
+  private failures = 0;
   private accountId = 'infiniacode';
   private error?: string;
   private readonly file: string;
@@ -278,13 +280,28 @@ export class OpencodeSource implements AgentSource {
       const ordered = [...this.tracked.values()].sort((a, b) => Number(!!a.session.parentID) - Number(!!b.session.parentID));
       for (const t of ordered) await this.sync(svc, t, active.has(t.session.id), now);
       this.error = undefined;
+      this.failures = 0;
     } catch (err) {
       const msg = errMsg(err);
       if (msg !== this.error) log.warn(`infiniacode source: ${msg}`);
       this.error = msg;
+      // H3: the service is gone (stopped / restarting): don't leave characters frozen as "working".
+      if (++this.failures === DOWN_AFTER) this.emptyOffice();
     } finally {
       this.busy = false;
     }
+  }
+
+  /** Every infiniacode character leaves; they come back on the next successful poll (tracked is rebuilt). */
+  private emptyOffice(): void {
+    for (const [id, t] of this.tracked) {
+      if (t.inOffice) {
+        if (t.session.parentID) this.opts.office.completeSub(id);
+        else this.opts.office.closeMain(id);
+      }
+    }
+    this.tracked.clear();
+    log.warn('infiniacode source: service unreachable — infiniacode agents left the office until it is back.');
   }
 
   private async sync(svc: ServiceInfo, t: Tracked, running: boolean, now: number): Promise<void> {
