@@ -3307,4 +3307,8 @@ export const EN: Readonly<Record<string, string>> = {
   "Começa uma sessão nova nesta sala (pasta já escolhida)": "Start a new session in this room (folder already chosen)",
   "Copiar o id da sessão": "Copy the session id",
   "Copiar o comando para abrir no terminal": "Copy the command to open it in a terminal",
+  "📂 Procurar…": "📂 Browse…",
+  "Escolher uma pasta no Finder": "Choose a folder in Finder",
+  "Escolha a pasta na janela do Finder…": "Choose the folder in the Finder window…",
+  "Não abriu o seletor de pastas: {0}": "Could not open the folder picker: {0}",
 };

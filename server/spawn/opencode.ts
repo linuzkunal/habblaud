@@ -6,6 +6,7 @@
 //   stop:  POST /api/session/<id>/interrupt (stops the current turn), then PATCH {archived: true} — archived, not
 //          deleted: it can still be restored in infiniacode. The character leaves when it goes idle/archived.
 // The service URL/password are re-read from service.json on every call. Never throws: errors come back as values.
+import { execFile } from 'node:child_process';
 import { readFileSync, statSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 
@@ -17,6 +18,8 @@ const TIMEOUT_MS = 10_000;
 export type ControlResult<T = object> = ({ ok: true } & T) | { ok: false; status: number; error: string };
 
 export interface OpencodeControl {
+  /** macOS native "Choose Folder" dialog on this computer → absolute path (cancelled = ok:false, status 499). */
+  pickFolder(): Promise<ControlResult<{ path: string }>>;
   start(raw: unknown): Promise<ControlResult<{ sessionId: string }>>;
   stop(sessionId: string): Promise<ControlResult>;
 }
@@ -66,6 +69,21 @@ export function createOpencodeControl(serviceFile: string, opts: { fetchImpl?: t
   }
 
   return {
+    pickFolder() {
+      if (process.platform !== 'darwin') return Promise.resolve({ ok: false, status: 501, error: 'the folder picker is macOS only' });
+      const script = 'POSIX path of (choose folder with prompt "Choose the project folder for the new employee")';
+      return new Promise((done) => {
+        execFile('/usr/bin/osascript', ['-e', script], { timeout: 180_000, encoding: 'utf8' }, (err, stdout, stderr) => {
+          if (err) {
+            const cancelled = /-128|User canceled/i.test(String(stderr)) || /-128/.test(String(err.message));
+            return done({ ok: false, status: cancelled ? 499 : 500, error: cancelled ? 'cancelled' : 'could not open the folder picker' });
+          }
+          const path = stdout.trim().replace(/\/$/, '') || '/';
+          done(isAbsolute(path) && isDir(path) ? { ok: true, path } : { ok: false, status: 500, error: 'the picker returned no folder' });
+        });
+      });
+    },
+
     async start(raw) {
       const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
       const folder = typeof r.folder === 'string' ? r.folder.trim() : '';

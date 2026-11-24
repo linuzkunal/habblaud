@@ -494,12 +494,14 @@ export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: Ser
       } else handleCodexEvent(req, res, { live: deps.codexLive, entries: () => accounts.entriesOf('codex') }).catch((err) => fail(res, err));
       return true;
     }
-    if (path === '/api/opencode/spawn' || /^\/api\/opencode\/agents\/[^/]+\/stop$/.test(path)) {
+    if (path === '/api/opencode/spawn' || path === '/api/opencode/pick-folder' || /^\/api\/opencode\/agents\/[^/]+\/stop$/.test(path)) {
       // Start / stop infiniacode sessions: acts on the machine, so the same lock as spawn (local access only).
       const ctl = deps.opencodeControl;
       if (!ctl) sendJson(res, 403, { error: 'infiniacode start/stop is off (no infiniacode service found)' });
       else if (!trusted(req, 'spawn')) sendJson(res, 403, { error: denied(req, 'infiniacode sessions are only started/stopped from this computer (http://localhost)') });
       else if (method !== 'POST') methodNotAllowed(res, 'POST');
+      else if (path === '/api/opencode/pick-folder')
+        ctl.pickFolder().then((r) => (r.ok ? sendJson(res, 200, { path: r.path }) : sendJson(res, r.status, { error: r.error })), (err) => fail(res, err));
       else if (path === '/api/opencode/spawn')
         readJson(req)
           .then(async (body) => {

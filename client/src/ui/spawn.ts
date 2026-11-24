@@ -119,6 +119,8 @@ export class SpawnPanel {
   readonly el: HTMLElement;
   private readonly folderList: HTMLElement;
   private readonly otherBtn: HTMLButtonElement;
+  /** Fork: native macOS folder picker (POST /api/opencode/pick-folder). */
+  private readonly browseBtn: HTMLButtonElement;
   private readonly folder: HTMLInputElement;
   private readonly prompt: HTMLTextAreaElement;
   private readonly fileInput: HTMLInputElement;
@@ -145,6 +147,7 @@ export class SpawnPanel {
   constructor(private readonly ctx: UiContext) {
     this.folderList = h('div', { class: 'ui-spawn__folders', role: 'radiogroup', attrs: { 'aria-label': tr('Projetos recentes') } });
     this.otherBtn = h('button', { class: 'ui-spawn__other', type: 'button', on: { click: () => this.showOther(true) } }, tr('+ Outra pasta'));
+    this.browseBtn = h('button', { class: 'ui-spawn__other', type: 'button', text: tr('📂 Procurar…'), title: tr('Escolher uma pasta no Finder'), on: { click: () => void this.browse() } });
     this.folder = h('input', {
       class: 'ui-rename__input ui-spawn__path',
       type: 'text',
@@ -209,7 +212,7 @@ export class SpawnPanel {
         this.targetRow,
         h('p', { class: 'ui-spawn__label', attrs: { id: 'ui-spawn-folders-label' }, text: tr('Projeto') }),
         this.folderList,
-        this.otherBtn,
+        h('div', { class: 'ui-spawn__other-row' }, this.otherBtn, this.browseBtn),
         this.folder,
         h('label', { class: 'ui-spawn__label', attrs: { for: 'ui-spawn-prompt' }, text: tr('Pedido') }),
         this.prompt,
@@ -260,6 +263,8 @@ export class SpawnPanel {
       this.selected = folder;
       this.showOther(false);
     }
+    // Always redraw: the room-only filter and the hidden buttons depend on `forced` (the list may not reload).
+    this.setFolders(this.folders);
     this.setTarget(this.target);
     // Primeiro com o que o escritório já sabe; a lista do servidor (histórico) chega logo depois.
     if (!this.folders.length) this.setFolders(spawnFolders(this.ctx.store.snapshot).map((path) => ({ path, name: path.split(/[\\/]/).pop() || path, lastAt: 0 })));
@@ -311,6 +316,7 @@ export class SpawnPanel {
     // Opened from a room: only that room's folder (no other projects, no "+ Other folder").
     const shown = this.forced ? this.folders.filter((f) => f.path === this.forced) : this.folders;
     setHidden(this.otherBtn, !!this.forced);
+    setHidden(this.browseBtn, !!this.forced || !access().opencodeSpawn);
     const known = this.folders.some((f) => f.path === this.selected);
     this.folderList.replaceChildren(
       ...shown.map((f) => {
@@ -392,6 +398,26 @@ export class SpawnPanel {
   private say(text: string, error = false): void {
     setText(this.status, text);
     this.status.classList.toggle('is-error', error);
+  }
+
+  /** Opens the Finder folder picker on this Mac and selects the chosen folder. */
+  private async browse(): Promise<void> {
+    this.browseBtn.disabled = true;
+    this.say(tr('Escolha a pasta na janela do Finder…'));
+    try {
+      const r = await api<{ path: string }>('/api/opencode/pick-folder', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      if (!this.folders.some((f) => f.path === r.path)) this.folders = [{ path: r.path, name: r.path.split(/[\\/]/).pop() || r.path, lastAt: 0 }, ...this.folders];
+      this.typing = false;
+      this.showOther(false);
+      this.selected = r.path;
+      this.renderFolders();
+      this.say('');
+    } catch (err) {
+      const msg = (err as Error).message;
+      this.say(msg === 'cancelled' ? '' : tr('Não abriu o seletor de pastas: {0}', [msg]), msg !== 'cancelled');
+    } finally {
+      this.browseBtn.disabled = false;
+    }
   }
 
   private async submit(): Promise<void> {
