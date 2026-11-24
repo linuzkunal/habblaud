@@ -26,3 +26,21 @@ describe('M2: mirror lines are masked', () => {
     expect(out).toContain('msg_1');
   });
 });
+
+import { mkdtempSync, utimesSync, writeFileSync, existsSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { pruneMirrors } from './source';
+describe('M3: mirror pruning', () => {
+  it('removes .jsonl files older than 7 days, keeps recent ones and other files', () => {
+    const d = mkdtempSync(join(tmpdir(), 'ocm-'));
+    for (const n of ['old.jsonl', 'new.jsonl', 'note.txt']) writeFileSync(join(d, n), 'x');
+    const eightDaysAgo = (Date.now() - 8 * 86400_000) / 1000;
+    utimesSync(join(d, 'old.jsonl'), eightDaysAgo, eightDaysAgo);
+    utimesSync(join(d, 'note.txt'), eightDaysAgo, eightDaysAgo);
+    expect(pruneMirrors(d)).toBe(1);
+    expect(existsSync(join(d, 'old.jsonl'))).toBe(false);
+    expect(existsSync(join(d, 'new.jsonl'))).toBe(true);
+    expect(existsSync(join(d, 'note.txt'))).toBe(true);
+  });
+});

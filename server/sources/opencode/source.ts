@@ -11,7 +11,7 @@
 //   terminal  = a local mirror of each session's finished messages, one JSON per line, in ~/.habblaud/opencode/
 //               (HABBLAUD_OPENCODE_MIRROR overrides; files are 0600), read by the terminal with terminal.ts.
 // Read-only: it never prompts, answers permissions or writes to opencode.
-import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Activity, AgentStatus, SourceInfo } from '../../../shared/types';
 import { describeTool, maskSecrets, truncate, type ActivityDescription } from '../../../shared/activity';
@@ -28,6 +28,8 @@ const IDLE_MS = 20 * 60 * 1000; // a session not updated for 20 min leaves the o
 const MAIN_ROLE = 'infiniacode';
 const MIRROR_EVERY = 2; // refresh a running session's terminal mirror every 2 polls
 const MIRROR_FETCH = 60; // catch-up read (first mirror, or a gap since the last one)
+const MIRROR_KEEP_MS = 7 * 24 * 3600 * 1000; // M3: mirror files untouched for 7 days are deleted (cache)
+const PRUNE_EVERY_MS = 3600 * 1000;
 const DOWN_AFTER = 3; // H3: failed polls in a row before infiniacode characters leave (service stopped)
 const MIRROR_STEP = 4; // steady-state read: just the newest few messages
 
@@ -91,6 +93,30 @@ export function maskDeep<T>(v: T): T {
   return v;
 }
 
+/** M3: deletes `*.jsonl` mirror files not modified for `keepMs`. Returns how many were removed. */
+export function pruneMirrors(dir: string, keepMs = MIRROR_KEEP_MS, now = Date.now()): number {
+  let removed = 0;
+  let names: string[] = [];
+  try {
+    names = readdirSync(dir);
+  } catch {
+    return 0;
+  }
+  for (const n of names) {
+    if (!n.endsWith('.jsonl')) continue;
+    try {
+      const p = join(dir, n);
+      if (now - statSync(p).mtimeMs > keepMs) {
+        unlinkSync(p);
+        removed++;
+      }
+    } catch {
+      /* raced with a write or already gone */
+    }
+  }
+  return removed;
+}
+
 export function serviceFile(env: NodeJS.ProcessEnv, home: string): string {
   return env.OPENCODE_SERVICE_FILE?.trim() || join(home, '.local', 'state', 'opencode', 'service.json');
 }
@@ -145,6 +171,7 @@ export class OpencodeSource implements AgentSource {
   readonly provider = 'opencode' as const;
   private readonly tracked = new Map<string, Tracked>();
   private timer?: NodeJS.Timeout;
+  private pruneTimer?: NodeJS.Timeout;
   private tick = 0;
   private busy = false;
   private failures = 0;
@@ -174,10 +201,14 @@ export class OpencodeSource implements AgentSource {
     }
     this.timer = setInterval(() => void this.poll(false), POLL_MS);
     this.timer.unref?.();
+    pruneMirrors(this.mirrorDir);
+    this.pruneTimer = setInterval(() => pruneMirrors(this.mirrorDir), PRUNE_EVERY_MS);
+    this.pruneTimer.unref?.();
   }
 
   stop(): void {
     if (this.timer) clearInterval(this.timer);
+    if (this.pruneTimer) clearInterval(this.pruneTimer);
     this.timer = undefined;
   }
 
