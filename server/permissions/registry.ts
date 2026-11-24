@@ -264,7 +264,7 @@ export function applyPermission(a: AgentInfo, p: PermissionRequestInfo | undefin
  * `agent_id` é o thread do subagente (e `session_id`, o thread raiz).
  */
 export function parseHookInput(raw: unknown): {
-  provider?: 'codex';
+  provider?: 'codex' | 'opencode';
   account?: string;
   codexHome?: string;
   sessionId: string;
@@ -282,8 +282,11 @@ export function parseHookInput(raw: unknown): {
   if (!r || !sessionId || !tool) throw new InvalidRequest(tr('esperado o JSON do hook PermissionRequest (session_id e tool_name)'));
   const t = typeof r.timeout_ms === 'number' && Number.isFinite(r.timeout_ms) ? r.timeout_ms : DEFAULT_TIMEOUT_MS;
   const codex = r.provider === 'codex';
+  // infiniacode / opencode: registered by the server's own bridge (permissions/opencode.ts), not by a hook.
+  const opencode = r.provider === 'opencode';
   return {
     ...(codex ? { provider: 'codex' as const, account: shortStr(r.account, 200), codexHome: shortStr(r.codexHome, 4_096) } : {}),
+    ...(opencode ? { provider: 'opencode' as const } : {}),
     sessionId,
     agentId: shortStr(r.agent_id, 200),
     agentType: shortStr(r.agent_type, 120),
@@ -400,9 +403,12 @@ export class PermissionRegistry {
     // Pergunta: todas precisam aparecer no escritório (o hook só responde se cada uma tiver resposta).
     if (ask && (!questions?.length || questions.length !== askCount(req.input.questions))) return { skip: 'unsupported-tool' };
     if (this.opts.viewers() <= 0) return { skip: 'no-viewers' };
+    const opencode = req.provider === 'opencode';
     const target = codex
       ? this.resolveCodexAgent(req.sessionId, req.agentId, req.agentType, this.opts.codexAccount?.(req.account, req.codexHome) ?? req.account)
-      : this.resolveAgent(req.sessionId, req.agentId, req.agentType);
+      : opencode
+        ? this.resolveOpencodeAgent(req.sessionId)
+        : this.resolveAgent(req.sessionId, req.agentId, req.agentType);
     if (!target) return { skip: 'unknown-session' };
     if (this.size >= this.maxPending) return { skip: 'too-many' };
 
@@ -412,6 +418,7 @@ export class PermissionRegistry {
     const view = 'title' in desc ? desc : toolView(req.tool, req.input, req.cwd);
     const info: PermissionRequestInfo = { id, tool: req.tool, title: view.title, text: desc.text, icon: desc.icon, createdAt: now, expiresAt: now + req.timeoutMs };
     if (codex) info.provider = 'codex';
+    if (opencode) info.provider = 'opencode';
     if (view.input) info.input = view.input;
     if (view.inputKind) info.inputKind = view.inputKind;
     if (target.subagent) info.subagent = target.subagent;
@@ -423,12 +430,13 @@ export class PermissionRegistry {
       info,
       agentId: target.id,
       sessionId: req.sessionId,
-      signature: codex ? '' : callSignature(req.tool, req.input),
+      signature: codex || opencode ? '' : callSignature(req.tool, req.input),
       lastScanAt: 0,
       waiters: new Set(),
       idleSince: now,
     };
-    if (codex) p.codex = true;
+    // `codex` here = "no transcript scan" (answered elsewhere is detected by the bridge for infiniacode).
+    if (codex || opencode) p.codex = true;
     if (req.agentId) p.hookAgentId = req.agentId;
     if (ask) p.askFormat = askFormat(req.input.questions);
     this.pending.set(id, p);
@@ -572,9 +580,9 @@ export class PermissionRegistry {
     if (agentId) {
       const subId = `${sessionId}:${agentId}`;
       const sub = office.get(subId);
-      if (present(sub) && sub.provider !== 'codex') return { id: subId };
+      if (present(sub) && sub.provider !== 'codex' && sub.provider !== 'opencode') return { id: subId };
     }
-    const main = office.list().find((a) => a.kind === 'main' && a.provider !== 'codex' && a.sessionId === sessionId && a.status !== 'offline');
+    const main = office.list().find((a) => a.kind === 'main' && a.provider !== 'codex' && a.provider !== 'opencode' && a.sessionId === sessionId && a.status !== 'offline');
     if (!main) return undefined;
     return agentId ? { id: main.id, subagent: agentType ?? tr('subagente') } : { id: main.id };
   }
@@ -595,6 +603,12 @@ export class PermissionRegistry {
     const main = find(sessionId);
     if (!main) return undefined;
     return sub ? { id: main.id, subagent: agentType ?? tr('subagente') } : { id: main.id };
+  }
+
+  /** infiniacode agent of a request: the character whose id is the (main or child) session id. */
+  private resolveOpencodeAgent(sessionId: string): { id: string; subagent?: string } | undefined {
+    const a = this.opts.office.get(sessionId);
+    return present(a) && a.provider === 'opencode' ? { id: a.id } : undefined;
   }
 
   private queueOf(p: Pending): { queued?: number } {

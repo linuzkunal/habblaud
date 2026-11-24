@@ -376,7 +376,9 @@ export function terminalFooter(agent: AgentInfo | undefined, agents: readonly Ag
       // Sem o pedido no Habblaud (o hook já devolveu à sessão, a sessão abriu sem o plugin ou não havia página aberta
       // quando ele chegou): os botões não vêm, então diz onde responder.
       const hint =
-        agent.provider === 'codex'
+        agent.provider === 'opencode'
+          ? `${text} · answer in the infiniacode window (this one has free-text fields, or is still arriving)`
+          : agent.provider === 'codex'
           ? tr('{0} · responda no Codex: este pedido não chegou ao Habblaud ou passou do tempo de espera', [text])
           : tr('{0} · responda no Claude Code: este pedido não chegou ao Habblaud ou passou do tempo de espera', [text]);
       return { kind: 'waiting', text: hint, since: agent.statusSince };

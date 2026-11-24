@@ -40,6 +40,7 @@ import { CodexSource } from './sources/codex/source';
 import { OpencodeSource, serviceFile as opencodeServiceFile } from './sources/opencode/source';
 import { createOpencodeSender } from './messages/opencode';
 import { createOpencodeControl } from './spawn/opencode';
+import { OpencodeAsks } from './permissions/opencode';
 import { existsSync as opencodeExists } from 'node:fs';
 import { createBuildReader, readBuildInfo } from './build';
 import { UpdateChecker } from './updates/checker';
@@ -252,6 +253,8 @@ const permissions = config.terminal
     })
   : undefined;
 late.permissions = permissions;
+// infiniacode questions/permissions answered from the office: the bridge plays the hook (permissions/opencode.ts).
+const opencodeAsks = permissions && agents.of('opencode') ? new OpencodeAsks({ registry: permissions, serviceFile: opencodeServiceFile(process.env, config.home) }) : undefined;
 // Mensagens pelo escritório (plugin habblaud-mensagens): entram na sessão como se você as tivesse digitado, então
 // seguem a mesma trava (e HABBLAUD_MENSAGENS=0 desliga só elas). Ao Codex vão por `codex queue` (messages/codex.ts):
 // fora do Docker o próprio servidor roda o comando (HABBLAUD_CODEX_BIN ou `codex` do PATH); no Docker, o auxiliar do
@@ -337,6 +340,7 @@ if (timeline) {
   timeline.ingest(hub.current());
 }
 permissions?.start();
+opencodeAsks?.start();
 messages?.start();
 stats.start();
 updates.start();
@@ -558,6 +562,7 @@ function shutdown(signal: string): void {
   log.info(tr('Encerrando ({0})…', [signal]));
   clearInterval(ticker);
   stats.stop();
+  opencodeAsks?.stop();
   agents.stop();
   accounts.stop();
   hub.stop();
