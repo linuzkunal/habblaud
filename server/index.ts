@@ -37,6 +37,8 @@ import { ClaudeWatcher } from './sources/watcher';
 import { discoverCodexDirs } from './sources/codex/accounts';
 import { CodexHistory } from './sources/codex/history';
 import { CodexSource } from './sources/codex/source';
+import { OpencodeSource, serviceFile as opencodeServiceFile } from './sources/opencode/source';
+import { existsSync as opencodeExists } from 'node:fs';
 import { createBuildReader, readBuildInfo } from './build';
 import { UpdateChecker } from './updates/checker';
 import { getLocale, tr } from '../shared/i18n';
@@ -138,6 +140,11 @@ const agents = new SourceSet([claude]);
 const codexDirs = config.codex ? discoverCodexDirs(process.env, config.home) : [];
 const codex = codexDirs.length ? new CodexSource({ accounts, office, dirs: codexDirs, env: process.env, home: config.home }) : undefined;
 if (codex) agents.add(codex);
+// infiniacode / opencode v2 (sources/opencode/): polls the background service; on when its service.json exists,
+// HABBLAUD_OPENCODE=0 turns it off. Read-only.
+const opencodeOff = ['0', 'false', 'off', 'no'].includes((process.env.HABBLAUD_OPENCODE ?? '').trim().toLowerCase());
+if (!opencodeOff && opencodeExists(opencodeServiceFile(process.env, config.home)))
+  agents.add(new OpencodeSource({ accounts, office, home: config.home, env: process.env }));
 // Eventos dos hooks do Codex (POST /api/codex/events, mod/habblaud-codex/hook.mjs): vão para a fonte do Codex ao vivo
 // (CodexLive); sem ela (nenhuma pasta do Codex ou HABBLAUD_CODEX=0) a rota responde {ok: false}.
 const codexLive: CodexLive | undefined = codex;
