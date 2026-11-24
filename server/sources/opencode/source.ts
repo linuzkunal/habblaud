@@ -117,6 +117,11 @@ export function pruneMirrors(dir: string, keepMs = MIRROR_KEEP_MS, now = Date.no
   return removed;
 }
 
+/** Where the terminal mirror files live (HABBLAUD_OPENCODE_MIRROR overrides). */
+export function mirrorDirOf(env: NodeJS.ProcessEnv, home: string): string {
+  return env.HABBLAUD_OPENCODE_MIRROR?.trim() || join(home, '.habblaud', 'opencode');
+}
+
 export function serviceFile(env: NodeJS.ProcessEnv, home: string): string {
   return env.OPENCODE_SERVICE_FILE?.trim() || join(home, '.local', 'state', 'opencode', 'service.json');
 }
@@ -185,7 +190,7 @@ export class OpencodeSource implements AgentSource {
 
   constructor(private readonly opts: OpencodeSourceOptions) {
     this.file = serviceFile(opts.env, opts.home);
-    this.mirrorDir = opts.env.HABBLAUD_OPENCODE_MIRROR?.trim() || join(opts.home, '.habblaud', 'opencode');
+    this.mirrorDir = mirrorDirOf(opts.env, opts.home);
   }
 
   async start(): Promise<void> {

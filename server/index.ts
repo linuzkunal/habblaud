@@ -37,7 +37,8 @@ import { ClaudeWatcher } from './sources/watcher';
 import { discoverCodexDirs } from './sources/codex/accounts';
 import { CodexHistory } from './sources/codex/history';
 import { CodexSource } from './sources/codex/source';
-import { OpencodeSource, serviceFile as opencodeServiceFile } from './sources/opencode/source';
+import { OpencodeSource, serviceFile as opencodeServiceFile, mirrorDirOf as opencodeMirrorDir } from './sources/opencode/source';
+import { OpencodeHistory } from './sources/opencode/history';
 import { createOpencodeSender } from './messages/opencode';
 import { createOpencodeControl } from './spawn/opencode';
 import { OpencodeAsks } from './permissions/opencode';
@@ -206,6 +207,9 @@ const history = config.terminal
   ? new HistorySet([new SessionHistory({ accounts: () => accounts.entries(), openAgentOf: (acc, sid) => openMainAgent(office.list(), acc, sid) })])
   : undefined;
 if (history && codex) history.add(new CodexHistory({ accounts: () => accounts.entriesOf('codex'), openAgentOf: (acc, sid) => openMainAgent(office.list(), acc, sid) }));
+// L4: infiniacode sessions (mirror files) in the history too.
+if (history && agents.of('opencode'))
+  history.add(new OpencodeHistory({ dir: opencodeMirrorDir(process.env, config.home), account: () => accounts.entriesOf('opencode')[0]?.id, openAgentOf: (acc, sid) => openMainAgent(office.list(), acc, sid) }));
 // Entregas: o fim de cada pedido, lido dos transcripts do histórico (mesma trava do terminal). Os arquivos entregues
 // são lidos aqui (Node, ou pasta de conta montada no Docker) ou pelo auxiliar do host.
 const deliveries = history
