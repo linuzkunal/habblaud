@@ -3304,4 +3304,5 @@ export const EN: Readonly<Record<string, string>> = {
   "o infiniacode não aceitou a mensagem": "infiniacode did not accept the message",
   "Falhou": "Off-board failed",
   "Fazendo uma pergunta": "Asking you a question",
+  "Começa uma sessão nova nesta sala (pasta já escolhida)": "Start a new session in this room (folder already chosen)",
 };

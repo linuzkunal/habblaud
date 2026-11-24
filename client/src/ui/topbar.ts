@@ -117,6 +117,7 @@ export class TopBar implements UiComponent {
     this.spawnBtn.setAttribute('aria-haspopup', 'dialog');
     this.spawnBtn.hidden = true;
     this.staff = new StaffBar(ctx, (anchor) => this.spawnPanel.toggle(anchor));
+    ctx.openOnboard = (anchor, folder) => this.spawnPanel.toggle(anchor, folder);
     this.version = new VersionChip(ctx, this.settingsBtn);
     this.status = h('div', { class: 'ui-topbar__status' }, this.pill, this.version.el, this.demoBadge);
     const viewGroup = h(

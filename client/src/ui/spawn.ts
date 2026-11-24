@@ -131,6 +131,8 @@ export class SpawnPanel {
   private folders: FolderOption[] = [];
   private selected = '';
   private typing = false;
+  /** Folder chosen by the caller (e.g. a room's On-board button): stays selected and listed. */
+  private forced?: string;
   private files: PendingFile[] = [];
   /** Which tool the new agent runs: Claude Code (POST /api/spawn) or infiniacode (POST /api/opencode/spawn). */
   private target: 'claude' | 'infiniacode' = 'claude';
@@ -250,9 +252,14 @@ export class SpawnPanel {
     else setText(this.hint, this.claudeHint.textContent ?? '');
   }
 
-  toggle(anchor: HTMLElement): void {
+  toggle(anchor: HTMLElement, folder?: string): void {
     this.anchor = anchor;
     if (this.isOpen) return this.hide();
+    this.forced = folder;
+    if (folder) {
+      this.selected = folder;
+      this.showOther(false);
+    }
     this.setTarget(this.target);
     // Primeiro com o que o escritório já sabe; a lista do servidor (histórico) chega logo depois.
     if (!this.folders.length) this.setFolders(spawnFolders(this.ctx.store.snapshot).map((path) => ({ path, name: path.split(/[\\/]/).pop() || path, lastAt: 0 })));
@@ -290,6 +297,7 @@ export class SpawnPanel {
   }
 
   private setFolders(list: FolderOption[]): void {
+    if (this.forced && !list.some((f) => f.path === this.forced)) list = [{ path: this.forced, name: this.forced.split(/[\\/]/).pop() || this.forced, lastAt: 0 }, ...list];
     this.folders = list;
     if (!this.selected) {
       const pref = readPref();

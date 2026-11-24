@@ -3305,4 +3305,5 @@ export const ES: Readonly<Record<string, string>> = {
   "o infiniacode não aceitou a mensagem": "infiniacode no aceptó el mensaje",
   "Falhou": "Falló",
   "Fazendo uma pergunta": "Haciéndote una pregunta",
+  "Começa uma sessão nova nesta sala (pasta já escolhida)": "Inicia una sesión nueva en esta sala (carpeta ya elegida)",
 };
