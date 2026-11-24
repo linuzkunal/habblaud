@@ -8,8 +8,10 @@
 //   working   = session listed in /api/session/active; waiting = it also has a pending permission request
 //   idle      = recently updated, not running; leaves the office after IDLE_MS without updates
 //   activity  = the latest tool call of a running session, described with the shared describeTool().
+//   terminal  = a local mirror of each session's finished messages, one JSON per line, in ~/.habblaud/opencode/
+//               (HABBLAUD_OPENCODE_MIRROR overrides; files are 0600), read by the terminal with terminal.ts.
 // Read-only: it never prompts, answers permissions or writes to opencode.
-import { readFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Activity, AgentStatus, SourceInfo } from '../../../shared/types';
 import { describeTool, maskSecrets, truncate, type ActivityDescription } from '../../../shared/activity';
@@ -17,11 +19,15 @@ import type { AccountsService } from '../../accounts/service';
 import type { Office } from '../../model/office';
 import { errMsg, log } from '../../log';
 import type { AgentSource } from '../source';
+import type { TerminalParser } from '../terminal';
+import { createOpencodeTerminalParser } from './terminal';
 
 const POLL_MS = 1000;
 const LIST_EVERY = 5; // full session list every 5 polls; active list every poll
 const IDLE_MS = 20 * 60 * 1000; // a session not updated for 20 min leaves the office
 const MAIN_ROLE = 'infiniacode';
+const MIRROR_EVERY = 2; // refresh a running session's terminal mirror every 2 polls
+const MIRROR_FETCH = 60; // newest messages read per refresh
 
 interface ServiceInfo {
   url: string;
@@ -47,7 +53,7 @@ interface OcPart {
 interface OcMessage {
   id: string;
   type?: string;
-  time?: { created?: number };
+  time?: { created?: number; completed?: number };
   content?: OcPart[];
   parts?: OcPart[];
 }
@@ -57,6 +63,10 @@ interface Tracked {
   inOffice: boolean;
   status: AgentStatus;
   lastActivityKey?: string;
+  /** Message ids already in the mirror file (loaded from it on first use). */
+  written?: Set<string>;
+  /** The mirror is current up to the last idle transition (no refresh needed while idle). */
+  mirrorFinal?: boolean;
 }
 
 export interface OpencodeSourceOptions {
@@ -126,9 +136,11 @@ export class OpencodeSource implements AgentSource {
   private accountId = 'infiniacode';
   private error?: string;
   private readonly file: string;
+  private readonly mirrorDir: string;
 
   constructor(private readonly opts: OpencodeSourceOptions) {
     this.file = serviceFile(opts.env, opts.home);
+    this.mirrorDir = opts.env.HABBLAUD_OPENCODE_MIRROR?.trim() || join(opts.home, '.habblaud', 'opencode');
   }
 
   async start(): Promise<void> {
@@ -162,9 +174,53 @@ export class OpencodeSource implements AgentSource {
     return [info];
   }
 
-  // No JSONL transcript: opencode keeps sessions in its own store. The terminal view falls back to "no transcript".
-  transcriptPathOf(): string | undefined {
-    return undefined;
+  /** The session's mirror file (see mirror()); the terminal tails it with createOpencodeTerminalParser. */
+  transcriptPathOf(agentId: string): string | undefined {
+    const t = this.tracked.get(agentId);
+    const path = this.mirrorPath(agentId);
+    return t?.inOffice && existsSync(path) ? path : undefined;
+  }
+
+  terminalParser(agentId: string): TerminalParser | undefined {
+    return this.tracked.has(agentId) ? createOpencodeTerminalParser() : undefined;
+  }
+
+  private mirrorPath(sessionId: string): string {
+    return join(this.mirrorDir, `${sessionId.replace(/[^\w-]/g, '_')}.jsonl`);
+  }
+
+  /** Appends the session's finished messages (oldest first) that the mirror file doesn't have yet. */
+  private async mirror(svc: ServiceInfo, t: Tracked): Promise<void> {
+    const path = this.mirrorPath(t.session.id);
+    if (!t.written) {
+      t.written = new Set();
+      if (existsSync(path)) {
+        for (const line of readFileSync(path, 'utf8').split('\n')) {
+          try {
+            const id = (JSON.parse(line) as { id?: string }).id;
+            if (id) t.written.add(id);
+          } catch {
+            /* partial line */
+          }
+        }
+      }
+    }
+    let msgs: { data?: OcMessage[] };
+    try {
+      msgs = await this.get(svc, `/api/session/${t.session.id}/message?limit=${MIRROR_FETCH}&order=desc`);
+    } catch {
+      return;
+    }
+    const lines: string[] = [];
+    for (const m of [...(msgs.data ?? [])].reverse()) {
+      if (t.written.has(m.id)) continue;
+      if (m.type === 'assistant' && !m.time?.completed) break; // still streaming: keep order, wait for it
+      lines.push(JSON.stringify(m));
+      t.written.add(m.id);
+    }
+    if (!lines.length) return;
+    mkdirSync(this.mirrorDir, { recursive: true, mode: 0o700 });
+    appendFileSync(path, lines.join('\n') + '\n', { mode: 0o600 });
   }
 
   // ------------------------------------------------------------------ HTTP
@@ -285,6 +341,14 @@ export class OpencodeSource implements AgentSource {
     }
     if (status !== t.status || status === 'waiting') office.setStatus(s.id, status, waitingFor);
     t.status = status;
+    // Terminal mirror: on entering, every MIRROR_EVERY polls while running, and once more when it goes idle.
+    if (running) {
+      t.mirrorFinal = false;
+      if (!t.written || this.tick % MIRROR_EVERY === 0) await this.mirror(svc, t);
+    } else if (!t.mirrorFinal) {
+      await this.mirror(svc, t);
+      t.mirrorFinal = true;
+    }
   }
 
   /** Adds the latest tool call as an activity; returns the tool name if that call is still running. */
