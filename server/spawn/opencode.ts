@@ -1,6 +1,8 @@
 // Start ("on-board") and stop ("off-board") infiniacode / opencode v2 sessions from the office, through the
 // background service API — no terminal, no CLI:
 //   start: POST /api/session {title, location: {directory: <folder>}} → POST /api/session/<id>/prompt {text, delivery: "queue"}
+//          Attachments: the route writes them to ~/.habblaud/attachments/ first; the prompt carries them as `files`
+//          (file:// URIs: the service inlines them) and lists the paths in the text, so the agent can also read them.
 //          The session runs inside the service (open it in infiniacode to watch/take over); its character walks in
 //          on the next poll of sources/opencode.
 //   stop:  POST /api/session/<id>/interrupt (stops the current turn), then PATCH {archived: true} — archived, not
@@ -9,6 +11,8 @@
 import { execFile } from 'node:child_process';
 import { readFileSync, statSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { promptWithAttachments } from './attachments';
 
 export const PROMPT_MAX = 8_000;
 export const FOLDER_MAX = 1_024;
@@ -20,7 +24,8 @@ export type ControlResult<T = object> = ({ ok: true } & T) | { ok: false; status
 export interface OpencodeControl {
   /** macOS native "Choose Folder" dialog on this computer → absolute path (cancelled = ok:false, status 499). */
   pickFolder(): Promise<ControlResult<{ path: string }>>;
-  start(raw: unknown): Promise<ControlResult<{ sessionId: string }>>;
+  /** `files`: absolute paths of attachments Habblaud already wrote (never taken from the request body). */
+  start(raw: unknown, files?: readonly string[]): Promise<ControlResult<{ sessionId: string }>>;
   stop(sessionId: string): Promise<ControlResult>;
 }
 
@@ -84,7 +89,7 @@ export function createOpencodeControl(serviceFile: string, opts: { fetchImpl?: t
       });
     },
 
-    async start(raw) {
+    async start(raw, files = []) {
       const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
       const folder = typeof r.folder === 'string' ? r.folder.trim() : '';
       const prompt = typeof r.prompt === 'string' ? r.prompt.replace(/\s+$/, '') : '';
@@ -95,8 +100,11 @@ export function createOpencodeControl(serviceFile: string, opts: { fetchImpl?: t
       const created = await call('POST', '/api/session', { title, location: { directory: folder } });
       const id = (created.json as { data?: { id?: string } } | undefined)?.data?.id;
       if (!created.ok || !id || !SESSION_ID.test(id)) return { ok: false, status: created.ok ? 502 : created.status, error: `infiniacode could not create the session: ${created.text ?? ''}`.trim() };
-      if (prompt) {
-        const sent = await call('POST', `/api/session/${id}/prompt`, { text: prompt, delivery: 'queue' });
+      if (prompt || files.length) {
+        const body = files.length
+          ? { text: promptWithAttachments(prompt, files), delivery: 'queue', files: files.map((f) => ({ uri: pathToFileURL(f).href, name: f.split('/').pop() })) }
+          : { text: prompt, delivery: 'queue' };
+        const sent = await call('POST', `/api/session/${id}/prompt`, body);
         if (!sent.ok) return { ok: false, status: sent.status, error: `session ${id} created, but the instruction was not accepted: ${sent.text ?? ''}`.trim() };
       }
       return { ok: true, sessionId: id };

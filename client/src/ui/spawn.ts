@@ -248,10 +248,7 @@ export class SpawnPanel {
       this.targetBtns[k].classList.toggle('is-on', k === t);
       this.targetBtns[k].setAttribute('aria-checked', String(k === t));
     }
-    // L2: infiniacode sessions don't receive attachments: no Attach button there.
-    setHidden(this.attachBtn, t === 'infiniacode');
-    setHidden(this.fileList, t === 'infiniacode');
-    if (t === 'infiniacode') setText(this.hint, tr('Começa na hora uma sessão nova do infiniacode na pasta escolhida (no serviço em segundo plano); o funcionário novo entra nessa sala. Abra no infiniacode para assumir.'));
+    if (t === 'infiniacode') setText(this.hint, tr('Começa na hora uma sessão nova do infiniacode na pasta escolhida (no serviço em segundo plano); o funcionário novo entra nessa sala. Abra no infiniacode para assumir. Anexos vão para ~/.habblaud/attachments e seguem com o pedido.'));
     else setText(this.hint, this.claudeHint.textContent ?? '');
   }
 
@@ -429,11 +426,12 @@ export class SpawnPanel {
     this.submitBtn.disabled = true;
     if (this.target === 'infiniacode') {
       try {
+        const ids = await this.upload('/api/opencode/attachments');
         this.say(tr('Começando a sessão do infiniacode…'));
         const r = await api<{ sessionId: string }>('/api/opencode/spawn', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ folder, prompt: this.prompt.value }),
+          body: JSON.stringify({ folder, prompt: this.prompt.value, ...(ids.length ? { attachments: ids } : {}) }),
         });
         this.say(tr('Rodando: sessão {0} do infiniacode começou; o funcionário novo entra em instantes.', [r.sessionId]));
         this.prompt.value = '';
@@ -449,16 +447,7 @@ export class SpawnPanel {
       return;
     }
     try {
-      const ids: string[] = [];
-      for (const [i, f] of this.files.entries()) {
-        this.say(this.files.length > 1 ? tr('Enviando anexos ({0} de {1})…', [i + 1, this.files.length]) : tr('Enviando o anexo…'));
-        const r = await api<{ id: string }>('/api/spawn/attachments', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: f.file.name, type: f.file.type, data: await fileToBase64(f.file) }),
-        });
-        ids.push(r.id);
-      }
+      const ids = await this.upload('/api/spawn/attachments');
       this.say(tr('Começando no computador…'));
       let info = await api<SpawnInfo>('/api/spawn', {
         method: 'POST',
@@ -491,5 +480,20 @@ export class SpawnPanel {
       this.busy = false;
       this.submitBtn.disabled = false;
     }
+  }
+
+  /** Sends each attached file (one POST each, before the request) and returns their ids. */
+  private async upload(url: string): Promise<string[]> {
+    const ids: string[] = [];
+    for (const [i, f] of this.files.entries()) {
+      this.say(this.files.length > 1 ? tr('Enviando anexos ({0} de {1})…', [i + 1, this.files.length]) : tr('Enviando o anexo…'));
+      const r = await api<{ id: string }>(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: f.file.name, type: f.file.type, data: await fileToBase64(f.file) }),
+      });
+      ids.push(r.id);
+    }
+    return ids;
   }
 }

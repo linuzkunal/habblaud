@@ -28,6 +28,21 @@ describe('opencode control', () => {
     expect(calls[0].body).toEqual({ title: 'fix the login bug', location: { directory: '/w/p' } });
     expect(calls[1].body).toEqual({ text: 'fix the login bug', delivery: 'queue' });
   });
+  it('start with attachments sends them as files and lists the paths in the text', async () => {
+    const calls: Call[] = [];
+    const ctl = createOpencodeControl(svc(), { isDir: () => true, fetchImpl: fakeFetch(calls, (c) => (c.url.endsWith('/api/session') ? [200, { data: { id: 'ses_f1' } }] : [200, { data: {} }])) });
+    expect(await ctl.start({ folder: '/w/p', prompt: 'look at this', files: ['/etc/passwd'] }, ['/h/.habblaud/attachments/x/shot 1.png'])).toMatchObject({ ok: true });
+    const body = calls[1].body as { text: string; files: { uri: string; name: string }[] };
+    expect(body.files).toEqual([{ uri: 'file:///h/.habblaud/attachments/x/shot%201.png', name: 'shot 1.png' }]);
+    expect(body.text).toMatch(/^look at this\n\n.*\n- \/h\/\.habblaud\/attachments\/x\/shot 1\.png$/);
+    expect(JSON.stringify(body)).not.toContain('/etc/passwd'); // a `files` field in the request body is ignored
+  });
+  it('start with only attachments still sends a prompt', async () => {
+    const calls: Call[] = [];
+    const ctl = createOpencodeControl(svc(), { isDir: () => true, fetchImpl: fakeFetch(calls, () => [200, { data: { id: 'ses_f2' } }]) });
+    await ctl.start({ folder: '/w/p', prompt: '' }, ['/a/b.txt']);
+    expect(calls).toHaveLength(2);
+  });
   it('start without an instruction only creates the session', async () => {
     const calls: Call[] = [];
     const ctl = createOpencodeControl(svc(), { isDir: () => true, fetchImpl: fakeFetch(calls, () => [200, { data: { id: 'ses_x' } }]) });

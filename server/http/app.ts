@@ -17,7 +17,8 @@ import type { TerminalStreams } from './terminal';
 import { tr } from '../../shared/i18n';
 import type { SpawnService } from '../spawn/spawn';
 import type { OpencodeControl } from '../spawn/opencode';
-import { ATTACHMENT_BODY_MAX, parseAttachment, type AttachmentStore } from '../spawn/attachments';
+import { randomUUID } from 'node:crypto';
+import { ATTACHMENT_BODY_MAX, attachmentsRoot, parseAttachment, writeAttachments, type Attachment, type AttachmentStore } from '../spawn/attachments';
 import type { SpawnFolder } from '../spawn/folders';
 import { AUDIO_BODY_MAX, type DictationService } from '../dictation/dictation';
 import type { DeliveryIndex } from '../deliveries/deliveries';
@@ -72,6 +73,8 @@ export interface ApiDeps {
   spawnFolders?: () => Promise<SpawnFolder[]>;
   /** Anexos do "Novo agente" (POST /api/spawn/attachments; spawn/attachments.ts). */
   attachments?: AttachmentStore;
+  /** Writes the infiniacode on-board attachments and returns their paths (default: ~/.habblaud/attachments/; tests swap it). */
+  writeAttachments?: (files: readonly Attachment[]) => string[];
   /** Ditado (/api/dictation e, para o auxiliar do host, /api/host/dictation/*; dictation/dictation.ts). */
   dictation?: DictationService;
   /** Entregas (GET /api/deliveries e os anexos em /api/deliveries/file/:id; deliveries/deliveries.ts). */
@@ -494,7 +497,7 @@ export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: Ser
       } else handleCodexEvent(req, res, { live: deps.codexLive, entries: () => accounts.entriesOf('codex') }).catch((err) => fail(res, err));
       return true;
     }
-    if (path === '/api/opencode/spawn' || path === '/api/opencode/pick-folder' || /^\/api\/opencode\/agents\/[^/]+\/stop$/.test(path)) {
+    if (path === '/api/opencode/spawn' || path === '/api/opencode/pick-folder' || path === '/api/opencode/attachments' || /^\/api\/opencode\/agents\/[^/]+\/stop$/.test(path)) {
       // Start / stop infiniacode sessions: acts on the machine, so the same lock as spawn (local access only).
       const ctl = deps.opencodeControl;
       if (!ctl) sendJson(res, 403, { error: 'infiniacode start/stop is off (no infiniacode service found)' });
@@ -502,10 +505,35 @@ export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: Ser
       else if (method !== 'POST') methodNotAllowed(res, 'POST');
       else if (path === '/api/opencode/pick-folder')
         ctl.pickFolder().then((r) => (r.ok ? sendJson(res, 200, { path: r.path }) : sendJson(res, r.status, { error: r.error })), (err) => fail(res, err));
-      else if (path === '/api/opencode/spawn')
+      else if (path === '/api/opencode/attachments') {
+        const store = deps.attachments;
+        if (!store) sendJson(res, 403, { error: tr('anexos desligados') });
+        else
+          readJson(req, ATTACHMENT_BODY_MAX)
+            .then((body) => {
+              const a = parseAttachment(body);
+              if ('error' in a) return sendJson(res, 400, { error: a.error });
+              const r = store.put(a);
+              if ('error' in r) return sendJson(res, 429, { error: r.error });
+              sendJson(res, 201, { id: r.id, name: a.name, size: a.data.length });
+            })
+            .catch((err) => fail(res, err));
+      } else if (path === '/api/opencode/spawn')
         readJson(req)
           .then(async (body) => {
-            const r = await ctl.start(body);
+            const ids = body && typeof body === 'object' ? (body as { attachments?: unknown }).attachments : undefined;
+            let files: string[] = [];
+            if (ids !== undefined) {
+              if (!deps.attachments) return sendJson(res, 403, { error: tr('anexos desligados') });
+              const taken = deps.attachments.take(ids);
+              if ('error' in taken) return sendJson(res, 400, { error: taken.error });
+              try {
+                files = (deps.writeAttachments ?? ((files) => writeAttachments(attachmentsRoot(), randomUUID(), files)))(taken);
+              } finally {
+                deps.attachments.release(taken.reduce((n, f) => n + f.data.length, 0));
+              }
+            }
+            const r = await ctl.start(body, files);
             if (r.ok) sendJson(res, 201, { sessionId: r.sessionId });
             else sendJson(res, r.status, { error: r.error });
           })

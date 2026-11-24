@@ -271,7 +271,8 @@ const ptyOptIn = isTruthy(ptyFlag);
 // Novo agente pelo escritório (sessão do Claude Code em segundo plano, ou a tela do app do Claude preenchida): a
 // liberação acima mais a trava das mensagens. No Docker, quem roda é o auxiliar do host (npm run codex:bridge).
 const spawnOn = config.messages && ptyOptIn;
-const attachments = spawnOn ? new AttachmentStore() : undefined;
+// The store also serves the infiniacode on-board (POST /api/opencode/attachments), which has no PTY opt-in.
+const attachments = spawnOn || agents.of('opencode') ? new AttachmentStore() : undefined;
 const spawnBin = config.inDocker ? undefined : runnableClaudeBin(process.env);
 const spawn = spawnOn
   ? new SpawnService(config.inDocker ? { attachments } : { opener: createOpener(), cli: spawnBin ? createCliRunner(spawnBin) : undefined, attachments })

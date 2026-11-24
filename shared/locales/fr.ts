@@ -3305,7 +3305,7 @@ export const FR: Readonly<Record<string, string>> = {
   "{0} foi desligado.": "{0} a été retiré.",
   "Não desligou: {0}": "Retrait échoué : {0}",
   "Ferramenta do agente": "Outil de l’agent",
-  "Começa na hora uma sessão nova do infiniacode na pasta escolhida (no serviço em segundo plano); o funcionário novo entra nessa sala. Abra no infiniacode para assumir.": "Démarre tout de suite une nouvelle session infiniacode dans le dossier choisi (dans le service en arrière-plan) ; le nouvel employé entre dans cette salle. Ouvrez-la dans infiniacode pour reprendre la main.",
+  "Começa na hora uma sessão nova do infiniacode na pasta escolhida (no serviço em segundo plano); o funcionário novo entra nessa sala. Abra no infiniacode para assumir. Anexos vão para ~/.habblaud/attachments e seguem com o pedido.": "Démarre tout de suite une nouvelle session infiniacode dans le dossier choisi (dans le service en arrière-plan) ; le nouvel employé entre dans cette salle. Ouvrez-la dans infiniacode pour reprendre la main. Les pièces jointes vont dans ~/.habblaud/attachments et partent avec la demande.",
   "Começando a sessão do infiniacode…": "Démarrage de la session infiniacode…",
   "Rodando: sessão {0} do infiniacode começou; o funcionário novo entra em instantes.": "En cours : la session infiniacode {0} a démarré ; le nouvel employé arrive dans un instant.",
   "Agente novo do infiniacode rodando.": "Nouvel agent infiniacode en cours.",
