@@ -162,3 +162,21 @@ describe('tokenizeInline', () => {
     expect(tokenizeInline('<img src=x onerror=alert(1)>')).toEqual([{ type: 'text', text: '<img src=x onerror=alert(1)>' }]);
   });
 });
+
+describe('parseTable (fork)', () => {
+  it('splits header, alignment and rows; pads short rows and keeps escaped pipes and pipes in code', async () => {
+    const { parseTable } = await import('./markdown');
+    expect(parseTable('| File | Lines | Note |\n|:---|---:|:-:|\n| a.ts | 10 | `x|y` |\n| b\\|c |')).toEqual({
+      head: ['File', 'Lines', 'Note'],
+      align: ['left', 'right', 'center'],
+      rows: [
+        ['a.ts', '10', '`x|y`'],
+        ['b|c', '', ''],
+      ],
+    });
+  });
+  it('works without outer pipes', async () => {
+    const { parseTable } = await import('./markdown');
+    expect(parseTable('a | b\n--- | ---\n1 | 2')).toEqual({ head: ['a', 'b'], align: ['', ''], rows: [['1', '2']] });
+  });
+});

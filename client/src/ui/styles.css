@@ -5322,12 +5322,30 @@ button.ui-term__think:hover,
 .ui-md__pre,
 .ui-md__table {
   margin: 0;
+  max-width: 100%;
   overflow-x: auto;
-  white-space: pre;
-  overflow-wrap: normal;
   font: inherit;
   scrollbar-width: thin;
   scrollbar-color: rgba(160, 176, 210, 0.25) transparent;
+}
+
+.ui-md__grid {
+  border-collapse: collapse;
+  font: inherit;
+}
+
+.ui-md__grid th,
+.ui-md__grid td {
+  padding: 2px 10px;
+  border: 1px solid rgba(160, 176, 210, 0.25);
+  text-align: left;
+  vertical-align: top;
+  white-space: nowrap;
+}
+
+.ui-md__grid th {
+  font-weight: 700;
+  background: rgba(160, 176, 210, 0.08);
 }
 
 .ui-md__pre {

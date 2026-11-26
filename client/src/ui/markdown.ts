@@ -4,7 +4,8 @@
 //
 // Cobertura (o que o Claude Code costuma escrever): blocos ``` com linguagem, `código`, **negrito**, *itálico*,
 // títulos #, listas com marcador e numeradas (com aninhamento), citação >, linha horizontal, tabelas
-// (preservadas como texto pré-formatado) e links (viram texto; o endereço fica na dica).
+// (fork: montadas como <table> de verdade, com alinhamento e markdown inline nas células) e links (viram texto; o
+// endereço fica na dica).
 
 export type MdInline =
   | { type: 'text'; text: string }
@@ -328,6 +329,52 @@ function appendInline(parent: HTMLElement, nodes: readonly MdInline[]): void {
   }
 }
 
+export type MdAlign = 'left' | 'center' | 'right' | '';
+export interface MdTable {
+  head: string[];
+  align: MdAlign[];
+  rows: string[][];
+}
+
+/** Células de uma linha "| a | b |": separa nos | sem barra invertida e sem estar dentro de `código`. */
+function cells(line: string): string[] {
+  const out: string[] = [];
+  let cur = '';
+  let code = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c === '\\' && line[i + 1] === '|') {
+      cur += '|';
+      i++;
+    } else if (c === '`') {
+      code = !code;
+      cur += c;
+    } else if (c === '|' && !code) {
+      out.push(cur);
+      cur = '';
+    } else cur += c;
+  }
+  out.push(cur);
+  const t = line.trim();
+  if (t.startsWith('|')) out.shift();
+  if (t.endsWith('|') && !t.endsWith('\\|')) out.pop();
+  return out.map((x) => x.trim());
+}
+
+/** A tabela (texto do bloco 'table') em cabeçalho, alinhamento e linhas; todas com o número de colunas do cabeçalho. */
+export function parseTable(text: string): MdTable {
+  const lines = text.split('\n');
+  const head = cells(lines[0] ?? '');
+  const n = head.length;
+  const align = cells(lines[1] ?? '').map((c): MdAlign => {
+    const l = c.startsWith(':');
+    const r = c.endsWith(':');
+    return l && r ? 'center' : r ? 'right' : l ? 'left' : '';
+  });
+  const fit = (r: string[]) => Array.from({ length: n }, (_, i) => r[i] ?? '');
+  return { head, align: fit(align) as MdAlign[], rows: lines.slice(2).map((l) => fit(cells(l))) };
+}
+
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls: string): HTMLElementTagNameMap[K] {
   const node = document.createElement(tag);
   node.className = cls;
@@ -387,9 +434,26 @@ export function renderMarkdown(src: string): DocumentFragment {
         break;
       }
       case 'table': {
-        const pre = el('pre', 'ui-md__table');
-        pre.textContent = b.text;
-        frag.append(pre);
+        const t = parseTable(b.text);
+        const wrap = el('div', 'ui-md__table');
+        const table = el('table', 'ui-md__grid');
+        const row = (cols: string[], tag: 'th' | 'td') => {
+          const tr = el('tr', '');
+          cols.forEach((c, i) => {
+            const cell = el(tag, '');
+            if (t.align[i]) cell.style.textAlign = t.align[i];
+            appendInline(cell, tokenizeInline(c));
+            tr.append(cell);
+          });
+          return tr;
+        };
+        const thead = el('thead', '');
+        thead.append(row(t.head, 'th'));
+        const tbody = el('tbody', '');
+        for (const r of t.rows) tbody.append(row(r, 'td'));
+        table.append(thead, tbody);
+        wrap.append(table);
+        frag.append(wrap);
         break;
       }
       case 'rule':
