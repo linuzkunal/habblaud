@@ -3,7 +3,7 @@
 // user prompt, reasoning, answer text, tool call (title in the Claude Code style "Bash(npm test)") and its result.
 import type { TerminalEntry } from '../../../shared/types';
 import { maskSecrets, truncate } from '../../../shared/activity';
-import type { TerminalParser } from '../terminal';
+import { marked, prepare, type TerminalParser } from '../terminal';
 
 const TEXT_MAX = 20_000;
 const THINKING_MAX = 8_000;
@@ -51,7 +51,7 @@ function titleArg(name: string, input: Record<string, unknown>): string {
 function inputText(name: string, input: Record<string, unknown>): string | undefined {
   const body = str(input.command) || str(input.code) || str(input.newString) || str(input.content);
   const raw = body || (Object.keys(input).length ? JSON.stringify(input, null, 2) : '');
-  return raw ? truncate(maskSecrets(raw), INPUT_MAX) : undefined;
+  return raw ? marked(prepare(raw, INPUT_MAX)) : undefined; // keeps line breaks (truncate() flattens them)
 }
 
 function resultText(p: Part): { text: string; truncated: boolean } | undefined {
@@ -81,7 +81,7 @@ export function opencodeEntries(m: Message): TerminalEntry[] {
   switch (m.type) {
     case 'user': {
       const text = str(m.text);
-      return text ? [{ kind: 'user', id, at, text: truncate(maskSecrets(text), TEXT_MAX) }] : [];
+      return text ? [{ kind: 'user', id, at, text: marked(prepare(text, TEXT_MAX)) }] : [];
     }
     case 'system': {
       const text = str(m.description) || str(m.text);
@@ -93,10 +93,10 @@ export function opencodeEntries(m: Message): TerminalEntry[] {
         const pid = p.id || `${id}#${i}`;
         if (p.type === 'reasoning') {
           const t = str(p.text);
-          out.push({ kind: 'thinking', id: pid, at, ...(t ? { text: truncate(t, THINKING_MAX) } : {}) });
+          out.push({ kind: 'thinking', id: pid, at, ...(t ? { text: marked(prepare(t, THINKING_MAX)) } : {}) });
         } else if (p.type === 'text') {
           const t = str(p.text);
-          if (t.trim()) out.push({ kind: 'assistant', id: pid, at, text: truncate(maskSecrets(t), TEXT_MAX) });
+          if (t.trim()) out.push({ kind: 'assistant', id: pid, at, text: marked(prepare(t, TEXT_MAX)) });
         } else if (p.type === 'tool' && p.name) {
           const input = p.state?.input ?? {};
           const tool = TOOL_NAMES[p.name] ?? p.name;
