@@ -270,6 +270,12 @@ class AgentView {
   private linesPlus: HTMLElement;
   private linesMinus: HTMLElement;
   private termRo: HTMLElement;
+  private renameInput!: HTMLInputElement;
+  private renameMsg!: HTMLElement;
+  private renameBox!: HTMLElement;
+  private renaming = false;
+  private renameFor?: string;
+  private pendingTitle?: { id: string; title: string };
 
   constructor(
     private ctx: UiContext,
@@ -282,6 +288,20 @@ class AgentView {
     this.title = h('p', { class: 'ui-hero__title' });
     // Fork: infiniacode session id + the command that opens it in a terminal (copy buttons).
     this.sessionId = h('code', { class: 'ui-session__id' });
+    // Rename: the title in infiniacode (PATCH through /api/opencode/agents/:id/rename). Enter saves, Esc cancels.
+    this.renameInput = h('input', { class: 'ui-rename__input', type: 'text', attrs: { maxlength: 200, 'aria-label': tr('Novo título da sessão'), spellcheck: 'false' } });
+    this.renameMsg = h('p', { class: 'ui-rename__hint', attrs: { role: 'status', 'aria-live': 'polite' } });
+    this.renameBox = h('div', { class: 'ui-session__rename', hidden: true }, this.renameInput, this.renameMsg);
+    this.renameInput.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') {
+        ev.preventDefault();
+        void this.saveRename();
+      } else if (ev.key === 'Escape') {
+        ev.preventDefault();
+        ev.stopPropagation();
+        this.endRename();
+      }
+    });
     const termCmd = () => (this.last ? `cd ${JSON.stringify(this.ctx.store.room(this.last.roomId)?.path ?? '.')} && infiniacode --session ${this.last.sessionId}` : '');
     // One card in the same style as the title box: label + two icon buttons on top, the id below.
     const cmdBtn = copyButton(termCmd, tr('Copiar comando do terminal'));
@@ -294,9 +314,10 @@ class AgentView {
         'div',
         { class: 'ui-session__head' },
         h('span', { class: 'ui-session__label', text: tr('Sessão') }),
-        h('span', { class: 'ui-session__actions' }, copyButton(() => this.last?.sessionId ?? '', tr('Copiar o id da sessão')), cmdBtn),
+        h('span', { class: 'ui-session__actions' }, iconButton(ICONS.pencil, tr('Renomear sessão'), () => this.startRename(), 'ui-icon-btn--sm'), copyButton(() => this.last?.sessionId ?? '', tr('Copiar o id da sessão')), cmdBtn),
       ),
       this.sessionId,
+      this.renameBox,
     );
     this.accChip = createAccountChip('md');
     this.accName = h('span', { class: 'ui-hero__acc-name' });
@@ -593,6 +614,47 @@ class AgentView {
     }
   }
 
+  private startRename(): void {
+    if (!this.last) return;
+    this.renaming = true;
+    this.renameInput.value = this.last.title ?? '';
+    setText(this.renameMsg, tr('Enter salva, Esc cancela.'));
+    this.renameMsg.classList.remove('is-error');
+    setHidden(this.renameBox, false);
+    this.renameInput.focus();
+    this.renameInput.select();
+  }
+
+  private endRename(): void {
+    this.renaming = false;
+    setHidden(this.renameBox, true);
+  }
+
+  private async saveRename(): Promise<void> {
+    const a = this.last;
+    const title = this.renameInput.value.replace(/\s+/g, ' ').trim();
+    if (!a || !title) return;
+    setText(this.renameMsg, tr('Salvando…'));
+    try {
+      const res = await fetch(`/api/opencode/agents/${encodeURIComponent(a.sessionId)}/rename`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        cache: 'no-store',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title }),
+      });
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`);
+      this.pendingTitle = { id: a.id, title };
+      this.endRename();
+      this.render();
+      this.ctx.announce(tr('Sessão renomeada.'));
+    } catch (err) {
+      this.renameMsg.classList.add('is-error');
+      setText(this.renameMsg, tr('Não renomeou: {0}', [(err as Error).message]));
+    }
+  }
+
   render(): void {
     const live = this.ctx.agent(this.id);
     if (live) this.last = live;
@@ -610,12 +672,17 @@ class AgentView {
     this.character.render(a, !!live);
     setText(this.role, roleLabel(a));
     setVariant(this.role, 'ui-role--', a.kind);
-    setText(this.title, a.title ?? '');
-    setHidden(this.title, !a.title);
+    // Just renamed: show the new title until the next poll brings it (a render in between has the old one).
+    if (this.pendingTitle && (this.pendingTitle.id !== a.id || a.title === this.pendingTitle.title)) this.pendingTitle = undefined;
+    const shownTitle = this.pendingTitle?.title ?? a.title;
+    setText(this.title, shownTitle ?? '');
+    setHidden(this.title, !shownTitle);
     const ic = a.provider === 'opencode';
     setHidden(this.sessionRow, !ic);
+    if (this.renaming && (!ic || this.renameFor !== a.id)) this.endRename();
+    this.renameFor = a.id;
     if (ic) setText(this.sessionId, a.sessionId);
-    setTitle(this.title, a.title ?? '');
+    setTitle(this.title, shownTitle ?? '');
     updateAccountChip(this.accChip, account, a.account, a.provider);
     setText(this.accName, account?.name ?? a.account);
     updateProviderTag(this.accProv, provider, account?.name ?? '');

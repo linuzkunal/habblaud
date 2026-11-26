@@ -497,7 +497,7 @@ export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: Ser
       } else handleCodexEvent(req, res, { live: deps.codexLive, entries: () => accounts.entriesOf('codex') }).catch((err) => fail(res, err));
       return true;
     }
-    if (path === '/api/opencode/spawn' || path === '/api/opencode/pick-folder' || path === '/api/opencode/attachments' || /^\/api\/opencode\/agents\/[^/]+\/stop$/.test(path)) {
+    if (path === '/api/opencode/spawn' || path === '/api/opencode/pick-folder' || path === '/api/opencode/attachments' || /^\/api\/opencode\/agents\/[^/]+\/(stop|rename)$/.test(path)) {
       // Start / stop infiniacode sessions: acts on the machine, so the same lock as spawn (local access only).
       const ctl = deps.opencodeControl;
       if (!ctl) sendJson(res, 403, { error: 'infiniacode start/stop is off (no infiniacode service found)' });
@@ -535,6 +535,14 @@ export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: Ser
             }
             const r = await ctl.start(body, files);
             if (r.ok) sendJson(res, 201, { sessionId: r.sessionId });
+            else sendJson(res, r.status, { error: r.error });
+          })
+          .catch((err) => fail(res, err));
+      else if (path.endsWith('/rename'))
+        readJson(req)
+          .then(async (body) => {
+            const r = await ctl.rename(decodeURIComponent(path.split('/')[4]), body);
+            if (r.ok) sendJson(res, 200, { title: r.title });
             else sendJson(res, r.status, { error: r.error });
           })
           .catch((err) => fail(res, err));

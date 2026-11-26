@@ -5,6 +5,7 @@
 //          (file:// URIs: the service inlines them) and lists the paths in the text, so the agent can also read them.
 //          The session runs inside the service (open it in infiniacode to watch/take over); its character walks in
 //          on the next poll of sources/opencode.
+//   rename: PATCH /api/session/<id> {title} — the new title shows in infiniacode and, on the next poll, in the office.
 //   stop:  POST /api/session/<id>/interrupt (stops the current turn), then PATCH {archived: true} — archived, not
 //          deleted: it can still be restored in infiniacode. The character leaves when it goes idle/archived.
 // The service URL/password are re-read from service.json on every call. Never throws: errors come back as values.
@@ -16,6 +17,7 @@ import { promptWithAttachments } from './attachments';
 
 export const PROMPT_MAX = 8_000;
 export const FOLDER_MAX = 1_024;
+export const TITLE_MAX = 200;
 const SESSION_ID = /^ses_[A-Za-z0-9]+$/;
 const TIMEOUT_MS = 10_000;
 
@@ -27,6 +29,7 @@ export interface OpencodeControl {
   /** `files`: absolute paths of attachments Habblaud already wrote (never taken from the request body). */
   start(raw: unknown, files?: readonly string[]): Promise<ControlResult<{ sessionId: string }>>;
   stop(sessionId: string): Promise<ControlResult>;
+  rename(sessionId: string, raw: unknown): Promise<ControlResult<{ title: string }>>;
 }
 
 export function createOpencodeControl(serviceFile: string, opts: { fetchImpl?: typeof fetch; isDir?: (p: string) => boolean } = {}): OpencodeControl {
@@ -108,6 +111,17 @@ export function createOpencodeControl(serviceFile: string, opts: { fetchImpl?: t
         if (!sent.ok) return { ok: false, status: sent.status, error: `session ${id} created, but the instruction was not accepted: ${sent.text ?? ''}`.trim() };
       }
       return { ok: true, sessionId: id };
+    },
+
+    async rename(sessionId, raw) {
+      if (!SESSION_ID.test(sessionId)) return { ok: false, status: 400, error: 'invalid infiniacode session id' };
+      const t = raw && typeof raw === 'object' ? (raw as { title?: unknown }).title : undefined;
+      const title = typeof t === 'string' ? t.replace(/\s+/g, ' ').trim() : '';
+      if (!title) return { ok: false, status: 400, error: 'the title is empty' };
+      if (title.length > TITLE_MAX) return { ok: false, status: 400, error: `the title is longer than ${TITLE_MAX} characters` };
+      const r = await call('PATCH', `/api/session/${sessionId}`, { title });
+      if (!r.ok) return { ok: false, status: r.status, error: `infiniacode could not rename the session: ${r.text ?? ''}`.trim() };
+      return { ok: true, title };
     },
 
     async stop(sessionId) {

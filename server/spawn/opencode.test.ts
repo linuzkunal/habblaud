@@ -43,6 +43,17 @@ describe('opencode control', () => {
     await ctl.start({ folder: '/w/p', prompt: '' }, ['/a/b.txt']);
     expect(calls).toHaveLength(2);
   });
+  it('rename: PATCHes the trimmed title; rejects empty, too long and bad ids', async () => {
+    const calls: Call[] = [];
+    const ctl = createOpencodeControl(svc(), { fetchImpl: fakeFetch(calls, () => [200, { data: {} }]) });
+    expect(await ctl.rename('ses_r1', { title: '  Sprint 11\n cleanup ' })).toEqual({ ok: true, title: 'Sprint 11 cleanup' });
+    expect(calls[0]).toMatchObject({ method: 'PATCH', body: { title: 'Sprint 11 cleanup' } });
+    expect(calls[0].url).toMatch(/\/api\/session\/ses_r1$/);
+    expect(await ctl.rename('ses_r1', { title: '  ' })).toMatchObject({ ok: false, status: 400 });
+    expect(await ctl.rename('ses_r1', { title: 'x'.repeat(201) })).toMatchObject({ ok: false, status: 400 });
+    expect(await ctl.rename('../x', { title: 'a' })).toMatchObject({ ok: false, status: 400 });
+    expect(calls).toHaveLength(1);
+  });
   it('start without an instruction only creates the session', async () => {
     const calls: Call[] = [];
     const ctl = createOpencodeControl(svc(), { isDir: () => true, fetchImpl: fakeFetch(calls, () => [200, { data: { id: 'ses_x' } }]) });

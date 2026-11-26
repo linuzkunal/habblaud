@@ -3312,4 +3312,9 @@ export const EN: Readonly<Record<string, string>> = {
   "Escolha a pasta na janela do Finder…": "Choose the folder in the Finder window…",
   "Não abriu o seletor de pastas: {0}": "Could not open the folder picker: {0}",
   "Copiar comando do terminal": "Copy terminal command",
+  "Renomear sessão": "Rename session",
+  "Novo título da sessão": "New session title",
+  "Enter salva, Esc cancela.": "Enter saves, Esc cancels.",
+  "Sessão renomeada.": "Session renamed.",
+  "Não renomeou: {0}": "Not renamed: {0}",
 };
